@@ -31,7 +31,9 @@ class MonitoringProtocol(object):
     
     def run(self):
         """Start the monitoring"""
-        
+
+        assert(self.active == False)
+       
         self.active = True
     
     def stop(self):
@@ -103,7 +105,8 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
         
         MonitoringProtocol.run(self)
         
-        self.checkCall = reactor.callLater(self.intvCheck, self.check)
+        if not self.checkCall or not self.checkCall.active():
+            self.checkCall = reactor.callLater(self.intvCheck, self.check)
     
     def stop(self):
         """Stop all running and/or upcoming checks"""
