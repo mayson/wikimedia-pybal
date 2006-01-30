@@ -26,17 +26,18 @@ class MonitoringProtocol(object):
         self.server = server
         self.up = None    # None, False (Down) or True (Up)
     
+        self.active = False
         self.firstCheck = True
     
     def run(self):
         """Start the monitoring"""
         
-        raise NotImplementedError
+        self.active = True
     
     def stop(self):
         """Stop the monitoring; cancel any running or upcoming checks"""
         
-        raise NotImplementedError
+        self.active = False
 
     def name(self):
         """Returns a printable name for this monitor"""
@@ -95,17 +96,20 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
         
         self.checkStartTime = None
         
-        self.URL = [ 'http://en.wikipedia.org/wiki/Main_Page',
-                     'http://en.wikipedia.org/wiki/Special:Version' ]
+        self.URL = [ 'http://en.wikipedia.org/wiki/Main_Page' ]
     
     def run(self):
         """Start the monitoring"""
+        
+        MonitoringProtocol.run(self)
         
         self.checkCall = reactor.callLater(self.intvCheck, self.check)
     
     def stop(self):
         """Stop all running and/or upcoming checks"""
         
+        MonitoringProtocol.stop(self)
+
         if self.checkCall and self.checkCall.active():
             self.checkCall.cancel()
             
@@ -126,7 +130,7 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
     def _fetchSuccessful(self, result):
         """Called when getProxyPage is finished successfully."""        
         
-        print self.server.host + ': Fetch successful,', seconds() - self.checkStartTime, 's'
+        print self.server.host + ': Fetch successful, %.2f s' % (seconds() - self.checkStartTime)
         self._resultUp()
         
         return result
@@ -134,7 +138,7 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
     def _fetchFailed(self, failure):
         """Called when getProxyPage finished with a failure."""        
                 
-        print self.server.host + ': Fetch failed,', seconds() - self.checkStartTime, 's'
+        print self.server.host + ': Fetch failed, %.2f s' % (seconds() - self.checkStartTime)
     
         self._resultDown(failure.getErrorMessage())
         
@@ -149,7 +153,8 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
         self.checkStartTime = None
         
         # Schedule the next check
-        reactor.callLater(self.intvCheck, self.check)
+        if self.active:
+            self.checkCall = reactor.callLater(self.intvCheck, self.check)
         
         return result
 
@@ -201,12 +206,15 @@ class IdleConnectionMonitoringProtocol(MonitoringProtocol, protocol.Reconnecting
     def run(self):
         """Start the monitoring"""
         
+        MonitoringProtocol.run(self)
+        
         self._connect()
     
     def stop(self):
-        """Stop all running and/or upcoming checks"""
         
-        raise NotImplementedError
+        MonitoringProtocol.stop(self)
+        
+        self.stopTrying()
     
     def clientConnectionFailed(self, connector, reason):
         """Called if the connection attempt failed"""
