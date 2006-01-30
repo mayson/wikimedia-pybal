@@ -118,7 +118,7 @@ class Coordinator:
         """Creates and runs monitoring instances for a list of Servers"""        
         
         # Use self.servers by default
-        if not servers:
+        if servers is None:
             servers = self.servers.itervalues()
         
         for server in servers:
