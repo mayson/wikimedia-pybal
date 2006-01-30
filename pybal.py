@@ -46,9 +46,23 @@ class Server:
             self.monitors.append(monitor)
     
     def removeMonitor(self, monitor):
-        """Removes a monitor instance from the list"""
+        """Stops and removes a monitor instance from the list"""
         
+        monitor.stop()
         self.monitors.remove(monitor)    # May raise exception if not exists
+    
+    def removeMonitors(self):
+        """Removes all monitors"""
+        
+        for monitor in self.monitors:
+            self.removeMonitor(monitor)
+    
+    def merge(self, server):
+        """Merges in configuration attributes of another instance"""
+        
+        for key, value in server.__dict__.iteritems():
+            if (key, type(value)) in self.allowedConfigKeys:
+                self.__dict__[key] = value
     
     def buildServer(cls, configuration):
         """
@@ -234,6 +248,7 @@ class Coordinator:
         """Parses the server list and changes the state accordingly."""
         
         delServers = self.servers.copy()    # Shallow copy
+        setupMonitoring = []
              
         for line in lines:
             line = line.rstrip('\n').strip()
@@ -245,13 +260,21 @@ class Coordinator:
                 if host in self.servers:
                     # Existing server. merge
                     server = delServers.pop(host)
-                    # TODO: merge
+                    newServer = Server.buildServer(serverdict)
+
+                    if not newServer.enabled and server.enabled:
+                        server.removeMonitors()
+                    elif newServer.enabled and not server.enabled:
+                        setupMonitoring.append(server)
+
+                    server.merge(newServer)
                 else:
                     # New server
                     server = Server.buildServer(serverdict)
                     self.servers[host] = server
-                    if server.enabled:
-                        self.createMonitoringInstances([server])
+                    setupMonitoring.append(server)
+        
+        self.createMonitoringInstances(setupMonitoring)
         
         # Remove old servers
         for host, server in delServers.iteritems():
