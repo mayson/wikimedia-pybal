@@ -302,7 +302,6 @@ def main():
             config.get(section, 'ip'),
             config.getint(section, 'port'),
             config.get(section, 'scheduler'))
-        print cfgtuple
                 
         services[section] = ipvs.LVSService(section, cfgtuple)
         crd = Coordinator(services[section],
