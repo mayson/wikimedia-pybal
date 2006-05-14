@@ -134,9 +134,10 @@ class LVSService:
     SVC_PROTOS = ('tcp', 'udp')
     SVC_SCHEDULERS = ('rr', 'wrr', 'lc', 'wlc', 'lblc', 'lblcr', 'dh', 'sh', 'sed', 'nq')
 
-    def __init__(self, (protocol, ip, port, scheduler), servers={}):
+    def __init__(self, name, (protocol, ip, port, scheduler), servers={}):
         """Constructor"""
         
+        self.name = name
         self.servers = servers
         
         if (protocol not in self.SVC_PROTOS
