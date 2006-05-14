@@ -86,17 +86,18 @@ class Coordinator:
     for a single LVS instance
     """
     
-    serverConfigURL = 'file:///etc/pybal/squids' # FIXME
+    serverConfigURL = 'file:///etc/pybal/squids'
     
     intvLoadServers = 60
     
-    def __init__(self, lvsservice):
+    def __init__(self, lvsservice, configURL):
         """Constructor"""
         
         self.lvsservice = lvsservice
         self.servers = {}
         self.pooledDownServers = []
         self.configHash = None
+        self.serverConfigURL = configURL
         
         # Start a periodic server list update task
         from twisted.internet import task
@@ -265,7 +266,7 @@ class Coordinator:
                     if not newServer.enabled and server.enabled:
                         server.removeMonitors()
                     elif newServer.enabled and not server.enabled:
-                        setupMonitoring.append(server)
+                        setupMonitoring.append(newServer)
 
                     server.merge(newServer)
                 else:
@@ -285,15 +286,28 @@ class Coordinator:
 
 def main():
     from twisted.internet import reactor
+    from ConfigParser import SafeConfigParser
     
     # Read the configuration file
     configFile = '/etc/pybal/pybal.conf'
-    cfgvars = {}
-    execfile(configFile, globals(), cfgvars)
     
-    lvsservice = ipvs.LVSService(
-        (cfgvars['protocol'], cfgvars['ip'], cfgvars['port'], cfgvars['scheduler']))
-    crd = Coordinator(lvsservice)
+    config = SafeConfigParser()
+    config.read(configFile)
+    
+    services = {}
+    
+    for section in config.sections():
+        cfgtuple = (
+            config.get(section, 'protocol'),
+            config.get(section, 'ip'),
+            config.getint(section, 'port'),
+            config.get(section, 'scheduler'))
+        print cfgtuple
+                
+        services[section] = ipvs.LVSService(section, cfgtuple)
+        crd = Coordinator(services[section],
+            configURL=config.get(section, 'config'))
+        print "Created LVS service '%s'" % section
     
     reactor.run()
 
