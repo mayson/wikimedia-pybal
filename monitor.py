@@ -121,6 +121,8 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
     def check(self):
         """Periodically called method that does a single uptime check."""
         
+        # FIXME: Check if this monitoring instance is even still active
+        
         import random
         url = random.choice(self.URL)
         

@@ -260,9 +260,11 @@ class Coordinator:
                 host = serverdict['host']
                 if host in self.servers:
                     # Existing server. merge
+                    print "Merging server", host
                     server = delServers.pop(host)
                     newServer = Server.buildServer(serverdict)
 
+                    # FIXME: Doesn't "enabled" mean "monitored, but not pooled"?
                     if not newServer.enabled and server.enabled:
                         server.removeMonitors()
                     elif newServer.enabled and not server.enabled:
@@ -271,6 +273,7 @@ class Coordinator:
                     server.merge(newServer)
                 else:
                     # New server
+                    print "New server", host
                     server = Server.buildServer(serverdict)
                     self.servers[host] = server
                     setupMonitoring.append(server)
@@ -280,6 +283,7 @@ class Coordinator:
         # Remove old servers
         for host, server in delServers.iteritems():
             server.enabled = False
+            server.removeMonitors()
             del self.servers[host]
         
         self.assignServers(self.servers)    # FIXME        
