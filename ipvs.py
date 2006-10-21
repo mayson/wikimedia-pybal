@@ -32,6 +32,9 @@ class IPVSManager:
         for line in cmdList:
             stdin.write(line + '\n')
         stdin.close()
+        
+        # FIXME: Check return code and act on failure
+        
     modifyState = classmethod(modifyState)
     
     def subCommandService(service):
