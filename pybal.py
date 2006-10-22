@@ -125,10 +125,22 @@ class Coordinator:
         for server in servers:
             if not server.enabled: continue
             
-            # TODO: make more dynamic / configurable
-            server.addMonitor(monitors.ProxyFetchMonitoringProtocol(self, server))
-            server.addMonitor(monitors.IdleConnectionMonitoringProtocol(self, server))
-            
+            try:
+                monitorlist = eval(self.lvsservice.configuration['monitors'])
+            except KeyError:
+                print "LVS service", self.lvsservice.name, "does not have a 'monitors' configuration option set."
+
+            if type(monitorlist) != list:
+                print "option 'monitors' in LVS service section", self.lvsservice.name, \
+                    "is not a Python list."
+            else:
+                for monitorname in monitorlist:
+                    try:
+                        monitorclass = getattr(monitors, monitorname + 'MonitoringProtocol')
+                        server.addMonitor(monitorclass(self, server, self.lvsservice.configuration))
+                    except AttributeError:
+                        print "Monitor", monitorname, "does not exist."
+                
             # Set initial status
             #server.up = self.calcStatus(server)
             
@@ -306,8 +318,11 @@ def main():
             config.get(section, 'ip'),
             config.getint(section, 'port'),
             config.get(section, 'scheduler'))
+            
+        # Read the custom configuration options of the LVS section
+        configdict = dict(config.items(section))
                 
-        services[section] = ipvs.LVSService(section, cfgtuple)
+        services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
         crd = Coordinator(services[section],
             configURL=config.get(section, 'config'))
         print "Created LVS service '%s'" % section
