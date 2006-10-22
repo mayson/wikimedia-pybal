@@ -19,11 +19,12 @@ class MonitoringProtocol(object):
     abstract methods, and some commonly useful functions  
     """
     
-    def __init__(self, coordinator, server):
+    def __init__(self, coordinator, server, configuration={}):
         """Constructor"""
         
         self.coordinator = coordinator
         self.server = server
+        self.configuration = configuration
         self.up = None    # None, False (Down) or True (Up)
     
         self.active = False
@@ -69,6 +70,22 @@ class MonitoringProtocol(object):
             self.firstCheck = False
             if self.coordinator:
                 self.coordinator.resultDown(self, reason)
+    
+    def _getConfigStringList(self, optionname):
+        """
+        Takes a (string) value, eval()s it and checks whether it
+        consists of either a single string, or a single list of
+        strings
+        """
+        
+        val = eval(self.configuration[self.__name__.lower() + '.' + optionname])
+        if type(val) == str:
+            return val
+        elif type(val) == list and reduce(lambda x, y: type(x) == str and y, val):
+            # Checked that each list member is a string
+            return val
+        else:
+            raise ValueError, "Value '%s' is not a string or stringlist" % val
 
 class ProxyFetchMonitoringProtocol(MonitoringProtocol):
     """
@@ -85,11 +102,11 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
     from twisted.web import error as weberror
     catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError )
     
-    def __init__(self, coordinator, server):
+    def __init__(self, coordinator, server, configuration={}):
         """Constructor"""
         
         # Call ancestor constructor
-        super(ProxyFetchMonitoringProtocol, self).__init__(coordinator, server)
+        super(ProxyFetchMonitoringProtocol, self).__init__(coordinator, server, configuration)
                 
         self.intvCheck = self.INTV_CHECK
         self.toGET = self.TIMEOUT_GET
@@ -98,7 +115,7 @@ class ProxyFetchMonitoringProtocol(MonitoringProtocol):
         
         self.checkStartTime = None
         
-        self.URL = [ 'http://en.wikipedia.org/wiki/Main_Page' ]
+        self.URL = self._getConfigStringList('url')
     
     def run(self):
         """Start the monitoring"""
@@ -200,11 +217,11 @@ class IdleConnectionMonitoringProtocol(MonitoringProtocol, protocol.Reconnecting
 
     __name__ = 'IdleConnection'
     
-    def __init__(self, coordinator, server):
+    def __init__(self, coordinator, server, configuration={}):
         """Constructor"""
         
         # Call ancestor constructor        
-        super(IdleConnectionMonitoringProtocol, self).__init__(coordinator, server)
+        super(IdleConnectionMonitoringProtocol, self).__init__(coordinator, server, configuration={})
         
         self.toCleanReconnect = self.TIMEOUT_CLEAN_RECONNECT
         

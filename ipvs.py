@@ -137,7 +137,7 @@ class LVSService:
     SVC_PROTOS = ('tcp', 'udp')
     SVC_SCHEDULERS = ('rr', 'wrr', 'lc', 'wlc', 'lblc', 'lblcr', 'dh', 'sh', 'sed', 'nq')
 
-    def __init__(self, name, (protocol, ip, port, scheduler), servers={}):
+    def __init__(self, name, (protocol, ip, port, scheduler), servers={}, configuration={}):
         """Constructor"""
         
         self.name = name
@@ -151,6 +151,8 @@ class LVSService:
         self.ip = ip
         self.port = port
         self.scheduler = scheduler
+        
+        self.configuration = configuration
         
         self.createService()
     
