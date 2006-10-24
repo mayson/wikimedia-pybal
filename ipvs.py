@@ -46,7 +46,7 @@ class IPVSManager:
             service:    tuple(protocol, address, port, ...)
         """
         
-        return {'tcp': '-t',
+        return {'tcp': '-t', 
                 'udp': '-u'}[service[0]] + ' %s:%d' % service[1:3]
     subCommandService = staticmethod(subCommandService)
     
@@ -153,6 +153,8 @@ class LVSService:
         self.scheduler = scheduler
         
         self.configuration = configuration
+
+        self.ipvsManager.DryRun = configuration.get('dryrun', False)
         
         self.createService()
     
@@ -170,7 +172,7 @@ class LVSService:
         """
         
         # Remove a previous service and add the new one
-        cmdList = [self.ipvsManager.commandRemoveService(self.service()),
+        cmdList = [self.ipvsManager.commandRemoveService(self.service()), 
                    self.ipvsManager.commandAddService(self.service())]
         
         # Add realservers
