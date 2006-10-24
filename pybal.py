@@ -272,9 +272,10 @@ class Coordinator:
                 host = serverdict['host']
                 if host in self.servers:
                     # Existing server. merge
-                    print "Merging server", host
                     server = delServers.pop(host)
                     newServer = Server.buildServer(serverdict)
+
+                    print "Merging server %s, weight %d" % ( host, newServer.weight )
 
                     # FIXME: Doesn't "enabled" mean "monitored, but not pooled"?
                     if not newServer.enabled and server.enabled:
@@ -285,9 +286,11 @@ class Coordinator:
                     server.merge(newServer)
                 else:
                     # New server
-                    print "New server", host
                     server = Server.buildServer(serverdict)
                     self.servers[host] = server
+                    
+                    print "New server %s, weight %d" % ( host, server.weight )
+                    
                     setupMonitoring.append(server)
         
         self.createMonitoringInstances(setupMonitoring)
@@ -300,6 +303,33 @@ class Coordinator:
         
         self.assignServers(self.servers)    # FIXME        
 
+def parseCommandLine(configuration):
+    """
+    Parses the command line arguments, and sets configuration options
+    in dictionary configuration.
+    """
+    
+    import sys, getopt
+
+    options = 'hn'
+    long_options = [ 'help', 'dryrun' ]
+    
+    for o, a in getopt.gnu_getopt(sys.argv, options, long_options)[0]:
+        if o in ('-h', '--help'):
+            printHelp()
+            sys.exit(0)
+        elif o in ('-n', '--dryrun'):
+            configuration['dryrun'] = True
+
+def printHelp():
+    """Prints a help screen"""
+    
+    print "Usage:"
+    print "\tpybal [ options ]"
+    print "\t\t-h\t--help\t\tThis help message"
+    print "\t\t-n\t--dryrun\tDry Run mode, do not actually update"
+    print "\t\t\t\t\tLVS configuration/state, but print commands"
+    
 def main():
     from twisted.internet import reactor
     from ConfigParser import SafeConfigParser
@@ -310,7 +340,10 @@ def main():
     config = SafeConfigParser()
     config.read(configFile)
     
-    services = {}
+    services, cliconfig = {}, {}
+    
+    # Parse the command line
+    parseCommandLine(cliconfig)
     
     for section in config.sections():
         cfgtuple = (
@@ -321,6 +354,9 @@ def main():
             
         # Read the custom configuration options of the LVS section
         configdict = dict(config.items(section))
+        
+        # Override with command line options
+        configdict.update(cliconfig)
                 
         services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
         crd = Coordinator(services[section],
