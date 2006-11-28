@@ -9,10 +9,12 @@ LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 $Id$
 """
 
-import os
+import os, sys
 
-import ipvs, monitor as monitors
+import ipvs, monitor
 
+# TODO: make more dynamic
+from monitors import *
 
 class Server:
     """
@@ -133,10 +135,12 @@ class Coordinator:
             if type(monitorlist) != list:
                 print "option 'monitors' in LVS service section", self.lvsservice.name, \
                     "is not a Python list."
-            else:
+            else:                
                 for monitorname in monitorlist:
                     try:
-                        monitorclass = getattr(monitors, monitorname + 'MonitoringProtocol')
+                        # FIXME: this is a hack?
+                        monitormodule = getattr(sys.modules['monitors'], monitorname.lower())
+                        monitorclass = getattr(monitormodule , monitorname + 'MonitoringProtocol' )
                         server.addMonitor(monitorclass(self, server, self.lvsservice.configuration))
                     except AttributeError:
                         print "Monitor", monitorname, "does not exist."
