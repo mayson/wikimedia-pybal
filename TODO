@@ -3,7 +3,6 @@ TODO for PyBal
 * Resolve hostnames to IPs at startup, and then use IPs
   exclusively for monitoring / LVS state modification, so it's
   more robust when the DNS resolver is flaky
-* Split up monitors into separate files/modules
 * Split off classes in pybal.py to a separate module, and make
   pybal.py an executable pybal script
 * Daemon mode with logfiles instead of in screen
