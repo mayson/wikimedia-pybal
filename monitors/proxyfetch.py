@@ -66,11 +66,14 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         
         # FIXME: Check if this monitoring instance is even still active
         
+        # FIXME: Use GET as a workaround for a Twisted bug with HEAD/Content-length
+        # where it expects a body and throws a PartialDownload failure
+        
         import random
         url = random.choice(self.URL)
         
         self.checkStartTime = seconds()
-        self.getProxyPage(url, method='HEAD', host=self.server.host, port=self.server.port,
+        self.getProxyPage(url, method='GET', host=self.server.host, port=self.server.port,
                             timeout=self.toGET, followRedirect=False
             ).addCallbacks(self._fetchSuccessful, self._fetchFailed
             ).addBoth(self._checkFinished)
