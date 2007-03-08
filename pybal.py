@@ -9,7 +9,7 @@ LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 $Id$
 """
 
-import os, sys
+import os, sys, signal
 
 import ipvs, monitor
 
@@ -315,8 +315,8 @@ def parseCommandLine(configuration):
     
     import sys, getopt
 
-    options = 'hn'
-    long_options = [ 'help', 'dryrun' ]
+    options = 'hnd'
+    long_options = [ 'help', 'dryrun', 'debug' ]
     
     for o, a in getopt.gnu_getopt(sys.argv, options, long_options)[0]:
         if o in ('-h', '--help'):
@@ -324,6 +324,8 @@ def parseCommandLine(configuration):
             sys.exit(0)
         elif o in ('-n', '--dryrun'):
             configuration['dryrun'] = True
+        elif o in ('-d', '--debug'):
+            configuration['debug'] = True
 
 def printHelp():
     """Prints a help screen"""
@@ -332,20 +334,125 @@ def printHelp():
     print "\tpybal [ options ]"
     print "\t\t-h\t--help\t\tThis help message"
     print "\t\t-n\t--dryrun\tDry Run mode, do not actually update"
+    print "\t\t-d\t--debug\tDebug mode, do not daemonize, log to stdout"
     print "\t\t\t\t\tLVS configuration/state, but print commands"
+
+def createDaemon():
+    """
+    Detach a process from the controlling terminal and run it in the
+    background as a daemon.
+    """
+
+    try:
+        # Fork a child process so the parent can exit.  This will return control
+        # to the command line or shell.  This is required so that the new process
+        # is guaranteed not to be a process group leader.  We have this guarantee
+        # because the process GID of the parent is inherited by the child, but
+        # the child gets a new PID, making it impossible for its PID to equal its
+        # PGID.
+        pid = os.fork()
+    except OSError, e:
+        return( ( e.errno, e.strerror ) )     # ERROR (return a tuple)
+
+    if ( pid == 0 ):       # The first child.
+        # Next we call os.setsid() to become the session leader of this new
+        # session.  The process also becomes the process group leader of the
+        # new process group.  Since a controlling terminal is associated with a
+        # session, and this new session has not yet acquired a controlling
+        # terminal our process now has no controlling terminal.  This shouldn't
+        # fail, since we're guaranteed that the child is not a process group
+        # leader.
+        os.setsid()
+
+        # When the first child terminates, all processes in the second child
+        # are sent a SIGHUP, so it's ignored.
+        signal.signal( signal.SIGHUP, signal.SIG_IGN )
+
+        try:
+            # Fork a second child to prevent zombies.  Since the first child is
+            # a session leader without a controlling terminal, it's possible for
+            # it to acquire one by opening a terminal in the future.  This second
+            # fork guarantees that the child is no longer a session leader, thus
+            # preventing the daemon from ever acquiring a controlling terminal.
+            pid = os.fork()        # Fork a second child.
+        except OSError, e:
+            return( ( e.errno, e.strerror ) )  # ERROR (return a tuple)
+
+        if ( pid == 0 ):      # The second child.
+            # Ensure that the daemon doesn't keep any directory in use.  Failure
+            # to do this could make a filesystem unmountable.
+            os.chdir( "/" )
+            # Give the child complete control over permissions.
+            os.umask( 0 )
+        else:
+            os._exit( 0 )      # Exit parent (the first child) of the second child.
+    else:
+        os._exit( 0 )         # Exit parent of the first child.
+
+    # Close all open files.  Try the system configuration variable, SC_OPEN_MAX,
+    # for the maximum number of open files to close.  If it doesn't exist, use
+    # the default value (configurable).
+    try:
+        maxfd = os.sysconf( "SC_OPEN_MAX" )
+    except ( AttributeError, ValueError ):
+        maxfd = 256       # default maximum
+
+    for fd in range( 0, maxfd ):
+        try:
+            os.close( fd )
+        except OSError:   # ERROR (ignore)
+            pass
+
+    # Redirect the standard file descriptors to /dev/null.
+    os.open( "/dev/null", os.O_RDONLY )    # standard input (0)
+    os.open( "/dev/null", os.O_RDWR )       # standard output (1)
+    os.open( "/dev/null", os.O_RDWR )       # standard error (2)
+
+    return( 0 )
+
+def writePID(): 
+    """
+    Writes the current processes's PID into /var/run/pybal.pid
+    """
     
+    try:
+        file('/var/run/pybal.pid', 'w').write(str(os.getpid()) + '\n')
+    except:
+        raise
+
+def terminate():
+    """
+    Cleans up on exit
+    """
+        
+    # Remove any PID file
+    print "Removing PID file /var/run/pybal.pid"
+    try:
+        os.unlink('/var/run/pybal.pid')
+    except OSError:
+        pass
+    
+    print "Exiting..."
+
+def sighandler(signum, frame):
+    """
+    Signal handler
+    """
+    
+    if signum == signal.SIGTERM:
+        terminate()
+
+def installSignalHandlers():
+    """
+    Installs Unix signal handlers, e.g. to run terminate() on TERM
+    """
+    
+    signal.signal(signal.SIGTERM, sighandler)
+
 def main():
     from twisted.internet import reactor
     from ConfigParser import SafeConfigParser
-    
-    # Open a logfile
-    from util import LogFile
-    try:
-        logfile = '/var/log/pybal.log'
-        sys.stdout = LogFile(logfile)
-    except:
-        print "Unable to open logfile %s, using stdout"
-    
+      
     # Read the configuration file
     configFile = '/etc/pybal/pybal.conf'
     
@@ -356,26 +463,47 @@ def main():
     
     # Parse the command line
     parseCommandLine(cliconfig)
-    
-    for section in config.sections():
-        cfgtuple = (
-            config.get(section, 'protocol'),
-            config.get(section, 'ip'),
-            config.getint(section, 'port'),
-            config.get(section, 'scheduler'))
+
+    try:
+        if not cliconfig.get('debug', False):
+            # Become a daemon
+            createDaemon()
             
-        # Read the custom configuration options of the LVS section
-        configdict = dict(config.items(section))
-        
-        # Override with command line options
-        configdict.update(cliconfig)
+            # Write PID file
+            writePID()
+            
+            # Open a logfile
+            from util import LogFile
+            try:
+                logfile = '/var/log/pybal.log'
+                sys.stdout = LogFile(logfile)
+            except:
+                print "Unable to open logfile %s, using stdout" % logfile  
+
+        # Install signal handlers
+        installSignalHandlers
+
+        for section in config.sections():
+            cfgtuple = (
+                config.get(section, 'protocol'),
+                config.get(section, 'ip'),
+                config.getint(section, 'port'),
+                config.get(section, 'scheduler'))
                 
-        services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
-        crd = Coordinator(services[section],
-            configURL=config.get(section, 'config'))
-        print "Created LVS service '%s'" % section
-    
-    reactor.run()
+            # Read the custom configuration options of the LVS section
+            configdict = dict(config.items(section))
+            
+            # Override with command line options
+            configdict.update(cliconfig)
+                    
+            services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
+            crd = Coordinator(services[section],
+                configURL=config.get(section, 'config'))
+            print "Created LVS service '%s'" % section
+        
+        reactor.run()
+    finally:
+        terminate()
 
 if __name__ == '__main__':
     main()
