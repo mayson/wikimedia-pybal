@@ -366,7 +366,7 @@ def createDaemon():
 
         # When the first child terminates, all processes in the second child
         # are sent a SIGHUP, so it's ignored.
-        signal.signal( signal.SIGHUP, signal.SIG_IGN )
+        #signal.signal( signal.SIGHUP, signal.SIG_IGN )
 
         try:
             # Fork a second child to prevent zombies.  Since the first child is
@@ -397,11 +397,11 @@ def createDaemon():
     except ( AttributeError, ValueError ):
         maxfd = 256       # default maximum
 
-    for fd in range( 0, maxfd ):
-        try:
-            os.close( fd )
-        except OSError:   # ERROR (ignore)
-            pass
+    #for fd in range( 0, maxfd ):
+    #    try:
+    #        os.close( fd )
+    #    except OSError:   # ERROR (ignore)
+    #        pass
 
     # Redirect the standard file descriptors to /dev/null.
     os.open( "/dev/null", os.O_RDONLY )    # standard input (0)
@@ -441,13 +441,22 @@ def sighandler(signum, frame):
     
     if signum == signal.SIGTERM:
         terminate()
+    elif signum == signal.SIGHUP:
+        # Cycle logfiles
+        from util import LogFile
+        if isinstance(sys.stdout, LogFile):
+            print "Cycling log file..."
+            sys.stdout.reopen()
 
 def installSignalHandlers():
     """
     Installs Unix signal handlers, e.g. to run terminate() on TERM
     """
     
-    signal.signal(signal.SIGTERM, sighandler)
+    signals = [signal.SIGTERM, signal.SIGHUP]
+    
+    for sig in signals:
+        signal.signal(sig, sighandler)
 
 def main():
     from twisted.internet import reactor
@@ -476,12 +485,12 @@ def main():
             from util import LogFile
             try:
                 logfile = '/var/log/pybal.log'
-                sys.stdout = LogFile(logfile)
+                sys.stdout = sys.stderr = LogFile(logfile)
             except:
                 print "Unable to open logfile %s, using stdout" % logfile  
 
         # Install signal handlers
-        installSignalHandlers
+        installSignalHandlers()
 
         for section in config.sections():
             cfgtuple = (
