@@ -139,7 +139,7 @@ class Coordinator:
                 for monitorname in monitorlist:
                     try:
                         # FIXME: this is a hack?
-                        monitormodule = getattr(sys.modules['monitors'], monitorname.lower())
+                        monitormodule = getattr(sys.modules['pybal.monitors'], monitorname.lower())
                         monitorclass = getattr(monitormodule , monitorname + 'MonitoringProtocol' )
                         server.addMonitor(monitorclass(self, server, self.lvsservice.configuration))
                     except AttributeError:
