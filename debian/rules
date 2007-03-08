@@ -10,8 +10,9 @@
 #export DH_VERBOSE=1
 
 # Main python version
-VER     := $(shell /usr/bin/python -c 'import sys; print sys.version[:3]'
+VER     := $(shell /usr/bin/python -c 'import sys; print sys.version[:3]')
 
+PREFIX=debian/pybal
 
 CFLAGS = -Wall -g
 
@@ -45,7 +46,8 @@ clean:
 	rm -f build-stamp configure-stamp
 
 	# Add here commands to clean up after the build process.
-	-$(MAKE) clean
+	#-$(MAKE) clean
+	rm -rf debian/pybal
 
 	dh_clean 
 
@@ -56,7 +58,13 @@ install: build
 	dh_installdirs
 
 	# Add here commands to install the package into debian/pybal.
-	install --prefix=debian/pybal/usr
+	python setup.py install --prefix=debian/pybal/usr
+	install -m 0755 main.py $(PREFIX)/usr/sbin/pybal
+	install -d -m 0755 $(PREFIX)/etc/pybal
+
+	# Example configs
+	install -m 0644 debian/pybal.conf $(PREFIX)/etc/pybal/pybal.conf
+	install -m 0644 debian/text-squids $(PREFIX)/etc/pybal/text-squids
 
 # Build architecture-independent files here.
 binary-indep: build install
@@ -72,12 +80,12 @@ binary-arch: build install
 #	dh_install
 #	dh_installmenu
 #	dh_installdebconf	
-#	dh_installlogrotate
+	dh_installlogrotate
 #	dh_installemacsen
 #	dh_installpam
 #	dh_installmime
 #	dh_python
-#	dh_installinit
+	dh_installinit
 #	dh_installcron
 #	dh_installinfo
 	dh_installman
