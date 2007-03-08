@@ -9,8 +9,10 @@ import sys, datetime
 
 class LogFile(object):
     def __init__(self, filename):
-        self.file = file(filename, 'a')
+        self.filename = filename
         self.lineEnded = True
+                
+        self.file = file(filename, 'a')
     
     def write(self, s):
         """
@@ -26,3 +28,12 @@ class LogFile(object):
             self.lineEnded = line.endswith('\n')
 
         self.file.flush()
+    
+    def reopen(self):
+        """
+        Close the logfile and reopen it. Useful for log rotation.
+        """
+        
+        self.file.close()
+        self.file = file(self.filename, 'a')
+        self.lineEnded = True
