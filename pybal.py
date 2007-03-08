@@ -338,6 +338,14 @@ def main():
     from twisted.internet import reactor
     from ConfigParser import SafeConfigParser
     
+    # Open a logfile
+    from util import LogFile
+    try:
+        logfile = '/var/log/pybal.log'
+        sys.stdout = LogFile(logfile)
+    except:
+        print "Unable to open logfile %s, using stdout"
+    
     # Read the configuration file
     configFile = '/etc/pybal/pybal.conf'
     
