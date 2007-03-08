@@ -1,0 +1,10 @@
+/var/log/pybal.log {
+  rotate 6
+  daily
+  compress
+  missingok
+  notifempty
+  postrotate
+    kill -HUP ‘cat /var/run/pybal.pid‘
+  endscript
+}
