@@ -7,7 +7,7 @@ Monitor class implementations for PyBal
 $Id: monitor.py 17191 2006-10-22 11:33:00Z mark $
 """
 
-import monitor
+from pybal import monitor
 
 from twisted.internet import reactor, protocol
 
