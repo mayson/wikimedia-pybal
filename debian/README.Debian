@@ -1,6 +1,5 @@
-pybal for Debian
-----------------
+Startup script: 	/etc/init.d/pybal
+Configuration files:	/etc/pybal
+Output logged to:	/var/log/pybal
 
-<possible notes regarding this package - if none, delete this file>
-
- -- Mark Bergsma <mark@unknown>, Thu,  8 Mar 2007 16:20:46 +0100
+ -- Mark Bergsma <mark@wikimedia.org>, Thu,  8 Mar 2007 16:20:46 +0100
