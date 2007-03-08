@@ -1,3 +1,9 @@
+pybal (0.1+r20262) edgy; urgency=low
+
+  * Update to r20262
+
+ -- Mark Bergsma <mark@wikimedia.org>  Thu,  8 Mar 2007 20:28:46 +0000
+
 pybal (0.1+r20236) edgy; urgency=low
 
   * Initial Release.
