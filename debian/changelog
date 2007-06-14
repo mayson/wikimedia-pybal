@@ -1,3 +1,10 @@
+pybal (0.1+r20262-2) feisty; urgency=low
+
+  * Build for Feisty and hard depend on python >= 2.5 to prevent being
+    installed on Edgy
+
+ -- Mark Bergsma <mark@wikimedia.org>  Thu, 14 Jun 2007 19:54:38 +0000
+
 pybal (0.1+r20262) edgy; urgency=low
 
   * Update to r20262
