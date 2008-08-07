@@ -5,6 +5,6 @@
   missingok
   notifempty
   postrotate
-    kill -HUP ‘cat /var/run/pybal.pid‘
+    kill -HUP `cat /var/run/pybal.pid`
   endscript
 }
