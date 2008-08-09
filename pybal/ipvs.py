@@ -1,6 +1,6 @@
 """
 ipvsadm.py
-Copyright (C) 2006 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2008 by Mark Bergsma <mark@nedworks.org>
 
 LVS state/configuration classes for PyBal
 
@@ -137,11 +137,11 @@ class LVSService:
     SVC_PROTOS = ('tcp', 'udp')
     SVC_SCHEDULERS = ('rr', 'wrr', 'lc', 'wlc', 'lblc', 'lblcr', 'dh', 'sh', 'sed', 'nq')
 
-    def __init__(self, name, (protocol, ip, port, scheduler), servers={}, configuration={}):
+    def __init__(self, name, (protocol, ip, port, scheduler), configuration):
         """Constructor"""
         
         self.name = name
-        self.servers = servers
+        self.servers = {}
         
         if (protocol not in self.SVC_PROTOS
             or scheduler not in self.SVC_SCHEDULERS):
@@ -154,7 +154,12 @@ class LVSService:
         
         self.configuration = configuration
 
-        self.ipvsManager.DryRun = configuration.get('dryrun', False)
+        self.ipvsManager.DryRun = configuration.getboolean('dryrun', False)
+        
+        if self.configuration.getboolean('bgp', False):
+            from pybal import BGPFailover
+            # Add service ip to the BGP announcements
+            BGPFailover.addPrefix(self.ip)
         
         self.createService()
     

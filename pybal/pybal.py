@@ -2,7 +2,7 @@
 
 """
 PyBal
-Copyright (C) 2006 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2008 by Mark Bergsma <mark@nedworks.org>
 
 LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 
@@ -11,7 +11,9 @@ $Id$
 
 import os, sys, signal
 
-import ipvs, monitor
+import ipvs, monitor, bgp
+
+from twisted.internet import reactor
 
 # TODO: make more dynamic
 from monitors import *
@@ -287,6 +289,8 @@ class Coordinator:
                     elif newServer.enabled and not server.enabled:
                         setupMonitoring.append(newServer)
 
+                    # FIXME: BUG. .pooled and .up will remain in default state (up),
+                    # and monitoring instances may not be setup.
                     server.merge(newServer)
                 else:
                     # New server
@@ -305,8 +309,86 @@ class Coordinator:
             server.removeMonitors()
             del self.servers[host]
         
-        self.assignServers(self.servers)    # FIXME        
+        self.assignServers(self.servers)    # FIXME   
 
+class BGPFailover:
+    """Class for maintaining a BGP session to a router for IP address failover"""
+
+    prefixes = set()
+    peerings = []
+
+    def __init__(self, globalConfig):
+        self.globalConfig = globalConfig
+        
+        if self.globalConfig.getboolean('bgp', False):
+            self.setup()
+
+    def setup(self):        
+        try:
+            self.bgpPeering = bgp.NaiveBGPPeering(myASN=self.globalConfig.getint('bgp-local-asn'),
+                                                  peerAddr=self.globalConfig.get('bgp-peer-address'))
+            
+            asPath = [int(asn) for asn in self.globalConfig.get('bgp-as-path', str(self.bgpPeering.myASN)).split()]
+            
+            advertisements = set()
+            for prefix in BGPFailover.prefixes:
+                attrSet = bgp.FrozenAttributeSet([bgp.OriginAttribute(),
+                                                  bgp.ASPathAttribute(asPath),
+                                                  bgp.NextHopAttribute(str(prefix))])
+                advertisements.add(bgp.Advertisement(prefix, attrSet))
+            
+            self.bgpPeering.setAdvertisements(advertisements)
+            self.bgpPeering.automaticStart()
+        except:
+            print "Could not set up BGP peering instance."
+            raise
+        else:
+            BGPFailover.peerings.append(self.bgpPeering)
+            reactor.addSystemEventTrigger('before', 'shutdown', self.closeSession, self.bgpPeering)
+            try:
+                # Try to listen on the BGP port, not fatal if fails
+                reactor.listenTCP(bgp.PORT, bgp.BGPServerFactory({self.bgpPeering.peerAddr: self.bgpPeering}))
+            except:
+                pass
+    
+    def closeSession(self, peering):
+        print "Clearing session to", peering.peerAddr
+        # Withdraw all announcements
+        peering.setAdvertisements(set())
+        return peering.manualStop()
+    
+    @classmethod
+    def addPrefix(cls, prefix):
+        cls.prefixes.add(bgp.IPv4IP(prefix)) # FIXME: IPv6
+
+class ConfigDict(dict):
+    
+    def getint(self, key, default=None):
+        try:
+            return int(self[key])
+        except KeyError:
+            if defaut is not None:
+                return default
+            else:
+                raise
+        # do not intercept ValueError
+    
+    def getboolean(self, key, default=None):
+        try:
+            value = self[key].strip().lower()
+        except KeyError:
+            if default is not None:
+                return default
+            else:
+                raise
+        else:
+            if value in ('t', 'true', 'y', 'yes', 'on', '1'):
+                return True
+            elif value in ('f', 'false', 'n', 'no', 'off', '0'):
+                return False
+            else:
+                raise ValueError
+                
 def parseCommandLine(configuration):
     """
     Parses the command line arguments, and sets configuration options
@@ -459,9 +541,8 @@ def installSignalHandlers():
         signal.signal(sig, sighandler)
 
 def main():
-    from twisted.internet import reactor
     from ConfigParser import SafeConfigParser
-      
+   
     # Read the configuration file
     configFile = '/etc/pybal/pybal.conf'
     
@@ -492,24 +573,28 @@ def main():
         # Install signal handlers
         installSignalHandlers()
 
+        globalConfig = {}
         for section in config.sections():
-            cfgtuple = (
-                config.get(section, 'protocol'),
-                config.get(section, 'ip'),
-                config.getint(section, 'port'),
-                config.get(section, 'scheduler'))
+            if section != 'global':
+                cfgtuple = (
+                    config.get(section, 'protocol'),
+                    config.get(section, 'ip'),
+                    config.getint(section, 'port'),
+                    config.get(section, 'scheduler'))
                 
             # Read the custom configuration options of the LVS section
-            configdict = dict(config.items(section))
+            configdict = ConfigDict(config.items(section))
             
             # Override with command line options
             configdict.update(cliconfig)
-                    
-            services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
-            crd = Coordinator(services[section],
-                configURL=config.get(section, 'config'))
-            print "Created LVS service '%s'" % section
+            
+            if section != 'global':
+                services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
+                crd = Coordinator(services[section],
+                    configURL=config.get(section, 'config'))
+                print "Created LVS service '%s'" % section
         
+        bgpannouncement = BGPFailover(configdict)
         reactor.run()
     finally:
         terminate()
