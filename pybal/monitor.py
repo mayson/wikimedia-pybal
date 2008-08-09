@@ -1,6 +1,6 @@
 """
 monitor.py
-Copyright (C) 2006 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2008 by Mark Bergsma <mark@nedworks.org>
 
 Monitor class implementations for PyBal
 
@@ -47,7 +47,7 @@ class MonitoringProtocol(object):
         if this implies a state change
         """
         
-        if self.up == False or self.firstCheck:
+        if self.active and self.up == False or self.firstCheck:
             self.up = True
             self.firstCheck = False
             if self.coordinator:
@@ -59,7 +59,7 @@ class MonitoringProtocol(object):
         if this implies a state change
         """        
         
-        if self.up == True or self.firstCheck:
+        if self.active and self.up == True or self.firstCheck:
             self.up = False
             self.firstCheck = False
             if self.coordinator:

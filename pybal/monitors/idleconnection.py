@@ -32,6 +32,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         
         self.toCleanReconnect = self.TIMEOUT_CLEAN_RECONNECT
         
+        # Install cleanup handler
+        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
+        
     def run(self):
         """Start the monitoring"""
         
