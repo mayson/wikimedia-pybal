@@ -10,3 +10,5 @@ TODO for PyBal
   IP packets
 * (Partial) lvsmon-like configuration from textfiles retrieved
   from the realservers, e.g. for computing the weight of a realserver
+* Reimplement IPVSManager using Netlink once the IPVS Netlink interface
+  has entered the kernel
