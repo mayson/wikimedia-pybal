@@ -11,7 +11,7 @@ $Id$
 
 import os, sys, signal
 
-import ipvs, monitor, bgp
+import ipvs, monitor, bgp, util
 
 from twisted.internet import reactor
 
@@ -388,44 +388,6 @@ class BGPFailover:
     @classmethod
     def addPrefix(cls, prefix):
         cls.prefixes.add(bgp.IPv4IP(prefix)) # FIXME: IPv6
-
-class ConfigDict(dict):
-    
-    def getint(self, key, default=None):
-        try:
-            return int(self[key])
-        except KeyError:
-            if defaut is not None:
-                return default
-            else:
-                raise
-        # do not intercept ValueError
-    
-    def getboolean(self, key, default=None):
-        try:
-            value = self[key].strip().lower()
-        except KeyError:
-            if default is not None:
-                return default
-            else:
-                raise
-        else:
-            if value in ('t', 'true', 'y', 'yes', 'on', '1'):
-                return True
-            elif value in ('f', 'false', 'n', 'no', 'off', '0'):
-                return False
-            else:
-                raise ValueError
-    
-    def getfloat(self, key, default=None):
-        try:
-            return float(self[key])
-        except KeyError:
-            if default is not None:
-                return default
-            else:
-                raise
-        # do not intercept ValueError
                 
 def parseCommandLine(configuration):
     """
@@ -621,7 +583,7 @@ def main():
                     config.get(section, 'scheduler'))
                 
             # Read the custom configuration options of the LVS section
-            configdict = ConfigDict(config.items(section))
+            configdict = util.ConfigDict(config.items(section))
             
             # Override with command line options
             configdict.update(cliconfig)
