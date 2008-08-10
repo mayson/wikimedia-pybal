@@ -2,7 +2,7 @@ Source: pybal
 Section: unknown
 Priority: optional
 Maintainer: Mark Bergsma <mark@wikimedia.org>
-Build-Depends: debhelper (>= 5)
+Build-Depends: debhelper (>= 5), wget
 Standards-Version: 3.7.2
 
 Package: pybal
