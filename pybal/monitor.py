@@ -65,6 +65,13 @@ class MonitoringProtocol(object):
             if self.coordinator:
                 self.coordinator.resultDown(self, reason)
     
+    def report(self, text):
+        """
+        Common method for reporting/logging check results
+        """
+        
+        print "[%s] %s (%s): %s" % (self.__name__, self.server.host, self.server.textStatus(), text)
+    
     def _getConfigStringList(self, optionname):
         """
         Takes a (string) value, eval()s it and checks whether it

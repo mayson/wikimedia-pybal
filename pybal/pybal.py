@@ -34,15 +34,30 @@ class Server:
         """Constructor"""        
         
         self.host = host
+        self.ip = None
         self.port = 80
         
         self.monitors = []
         
+        # A few invariants that SHOULD be maintained (but currently may not be):
+        # P0: pooled => enabled
+        # P1: up => pooled \/ !enabled
+        # P2: pooled => up \/ !canDepool
+        
         self.weight = self.DEF_WEIGHT
         self.up = self.DEF_STATE
         self.pooled = self.up
-        self.enabled = self.up
+        self.enabled = True
+        self.modified = None
         
+        #self.resolveHostname()
+    
+    def __eq__(self, other):
+        return instanceof(other, Server) and self.host == other.host
+    
+    def __hash__(self):
+        return hash(self.host)
+    
     def addMonitor(self, monitor):
         """Adds a monitor instance to the list"""
         
@@ -60,29 +75,103 @@ class Server:
         
         for monitor in self.monitors:
             self.removeMonitor(monitor)
-    
-    def merge(self, server):
-        """Merges in configuration attributes of another instance"""
+
+    def resolveHostname(self):
+        """Attempts to resolve the server's hostname to an IP address for better reliability."""
         
-        for key, value in server.__dict__.iteritems():
-            if (key, type(value)) in self.allowedConfigKeys:
-                self.__dict__[key] = value
+        if not self.ip:
+            from twisted.names import client
+            return client.lookupAddress(self.host).addCallback(self._hostnameResolved)
+        else:
+            from twisted.internet import defer
+            return defer.succeed(self.ip)
     
+    def _hostnameResolved(self, lookupResult):
+        try:
+            self.ip = lookupResult[0][0].payload.dottedQuad()   # FIXME: IPv6
+        except:
+            pass
+
+    def destroy(self):
+        self.enabled = False
+        self.removeMonitors()
+         
+    def createMonitoringInstances(self, coordinator, lvsservice):
+        """Creates and runs monitoring instances for this Server"""        
+        
+        try:
+            monitorlist = eval(lvsservice.configuration['monitors'])
+        except KeyError:
+            print "LVS service", lvsservice.name, "does not have a 'monitors' configuration option set."
+            raise
+
+        if type(monitorlist) != list:
+            print "option 'monitors' in LVS service section", lvsservice.name, \
+                "is not a Python list."
+        else:                
+            for monitorname in monitorlist:
+                try:
+                    # FIXME: this is a hack?
+                    monitormodule = getattr(sys.modules['pybal.monitors'], monitorname.lower())
+                    monitorclass = getattr(monitormodule , monitorname + 'MonitoringProtocol' )
+                except AttributeError:
+                    print "Monitor", monitorname, "does not exist."
+                else:
+                    monitor = monitorclass(coordinator, self, lvsservice.configuration)
+                    self.addMonitor(monitor)
+                    monitor.run()
+
+    def calcStatus(self):
+        """AND quantification of monitor.up over all monitoring instances of a single Server"""
+        
+        # Global status is up iff all monitors report up
+        return reduce(lambda b,monitor: b and monitor.up, self.monitors, self.monitors != [])
+    
+    def calcPartialStatus(self):
+        """OR quantification of monitor.up over all monitoring instances of a single Server"""
+        
+        # Partial status is up iff one of the monitors reports up      
+        return reduce(lambda b,monitor: b or monitor.up, self.monitors, self.monitors == [])
+
+    def textStatus(self):
+        return "%s/%s/%s" % (self.enabled and "enabled" or "disabled",
+                             self.up and "up" or (self.calcPartialStatus() and "partially up" or "down"),
+                             self.pooled and "pooled" or "not pooled")
+
+    def maintainState(self):
+        """Maintains a few invariants on configuration changes"""
+        
+        # P0
+        if not self.enabled:
+            self.pooled = False
+        # P1
+        if not self.pooled and self.enabled:
+            self.up = False
+
+    def merge(self, configuration):
+        """Merges in configuration from a dictionary of (allowed) attributes"""
+
+        for key, value in configuration.iteritems():
+            if (key, type(value)) not in self.allowedConfigKeys:
+                del configuration[key]
+        
+        # Overwrite configuration
+        self.__dict__.update(configuration)
+        self.maintainState()        
+        self.modified = True    # Indicate that this instance previously existed  
+    
+    @classmethod
     def buildServer(cls, configuration):
         """
         Factory method which builds a Server instance from a
         dictionary of (allowed) configuration attributes
         """
 
-        for key, value in configuration.iteritems():
-            if (key, type(value)) not in cls.allowedConfigKeys:
-                del configuration[key]
-        
         server = cls(configuration['host'])        # create a new instance...
-        server.__dict__.update(configuration)      # ...and override attributes
+        server.merge(configuration)                # ...and override attributes
+        server.modified = False
         
         return server
-    buildServer = classmethod(buildServer)
 
 class Coordinator:
     """
@@ -99,7 +188,7 @@ class Coordinator:
         
         self.lvsservice = lvsservice
         self.servers = {}
-        self.pooledDownServers = []
+        self.pooledDownServers = set()
         self.configHash = None
         self.serverConfigURL = configURL
         
@@ -107,52 +196,15 @@ class Coordinator:
         from twisted.internet import task
         task.LoopingCall(self.loadServers).start(self.intvLoadServers)
     
-    def assignServers(self, servers):
+    def assignServers(self):
         """
         Takes a new set of servers (as a host->Server dict) and
         hands them over to LVSService
         """
-                
-        self.servers = servers
         
         # Hand over enabled servers to LVSService
         self.lvsservice.assignServers(
-            dict([(server.host, server) for server in servers.itervalues() if server.enabled]))
-    
-    def createMonitoringInstances(self, servers=None):
-        """Creates and runs monitoring instances for a list of Servers"""        
-        
-        # Use self.servers by default
-        if servers is None:
-            servers = self.servers.itervalues()
-        
-        for server in servers:
-            if not server.enabled: continue
-            
-            try:
-                monitorlist = eval(self.lvsservice.configuration['monitors'])
-            except KeyError:
-                print "LVS service", self.lvsservice.name, "does not have a 'monitors' configuration option set."
-
-            if type(monitorlist) != list:
-                print "option 'monitors' in LVS service section", self.lvsservice.name, \
-                    "is not a Python list."
-            else:                
-                for monitorname in monitorlist:
-                    try:
-                        # FIXME: this is a hack?
-                        monitormodule = getattr(sys.modules['pybal.monitors'], monitorname.lower())
-                        monitorclass = getattr(monitormodule , monitorname + 'MonitoringProtocol' )
-                        server.addMonitor(monitorclass(self, server, self.lvsservice.configuration))
-                    except AttributeError:
-                        print "Monitor", monitorname, "does not exist."
-                
-            # Set initial status
-            #server.up = self.calcStatus(server)
-            
-            # Run all instances
-            for monitor in server.monitors:
-                monitor.run()
+            set([server for server in self.servers.itervalues() if server.pooled]))
 
     def resultDown(self, monitor, reason=None):
         """
@@ -162,11 +214,11 @@ class Coordinator:
         
         server = monitor.server
         
-        print 'Monitoring instance', monitor.name(), 'reports server', server.host, 'down:', (reason or '(reason unknown)')
+        print "Monitoring instance %s reports servers %s (%s) down:" % (monitor.name(), server.host, server.textStatus()), (reason or '(reason unknown)')
         
         if server.up:
             server.up = False
-            self.depool(server)
+            if server.pooled: self.depool(server)
 
     def resultUp(self, monitor):
         """
@@ -176,30 +228,21 @@ class Coordinator:
         
         server = monitor.server
     
-        if not server.up and self.calcStatus(server):
+        if not server.up and server.calcStatus():
+            print "Server %s (%s) is up" % (server.host, server.textStatus())
             server.up = True
-            self.repool(server)
-            
-            print 'Server', server.host, 'is up'
-    
-    def calcStatus(self, server):
-        """AND quantification of monitor.up over all monitoring instances of a single Server"""
-        
-        # Global status is up iff all monitors report up
-        return reduce(lambda b,monitor: b and monitor.up, server.monitors, server.monitors != [])            
+            if server.enabled: self.repool(server)    
 
     def depool(self, server):
         """Depools a single Server, if possible"""
         
-        if not server.pooled: return
+        assert server.pooled
         
-        if self.canDepool(server):
+        if self.canDepool():
             self.lvsservice.removeServer(server)
-            try: self.pooledDownServers.remove(server)
-            except ValueError: pass
+            self.pooledDownServers.discard(server)
         else:
-            if server not in self.pooledDownServers:
-                self.pooledDownServers.append(server)
+            self.pooledDownServers.add(server)
             print 'Could not depool server', server.host, 'because of too many down!'
     
     def repool(self, server):
@@ -208,28 +251,28 @@ class Coordinator:
         not be depooled then because of too many hosts down.
         """
         
-        if not server.pooled and server.enabled:
+        assert server.enabled
+        
+        if not server.pooled:
             self.lvsservice.addServer(server)
+        else:
+            print "Leaving previously pooled but down server", server.host, "pooled"
         
         # If it had been pooled in down state before, remove it from the list
-        try: self.pooledDownServers.remove(server)
-        except ValueError: pass
+        self.pooledDownServers.discard(server)
 
         # See if we can depool any servers that could not be depooled before
-        for server in self.pooledDownServers:
-            if self.canDepool(server):
-                self.depool(server)
-            else:    # then we can't depool any further servers either...
-                break
+        while len(self.pooledDownServers) > 0 and self.canDepool():
+            self.depool(self.pooledDownServers.pop())
 
-    def canDepool(self, server):
+    def canDepool(self):
         """Returns a boolean denoting whether another server can be depooled"""
         
         # Construct a list of servers that have status 'down'
         downServers = [server for server in self.servers.itervalues() if not server.up]
         
-        # Only allow depooling if less than half of the total amount of servers are down
-        return len(downServers) <= len(self.servers) / 2
+        # The total amount of pooled servers may never drop below a configured threshold
+        return len(self.servers) - len(downServers) >= len(self.servers) * self.lvsservice.getDepoolThreshold()
     
     def loadServers(self, configURL=None):
         """Periodic task to load a new server list/configuration file from a specified URL."""
@@ -267,7 +310,6 @@ class Coordinator:
         """Parses the server list and changes the state accordingly."""
         
         delServers = self.servers.copy()    # Shallow copy
-        setupMonitoring = []
              
         for line in lines:
             line = line.rstrip('\n').strip()
@@ -279,37 +321,23 @@ class Coordinator:
                 if host in self.servers:
                     # Existing server. merge
                     server = delServers.pop(host)
-                    newServer = Server.buildServer(serverdict)
-
-                    print "Merging server %s, weight %d" % ( host, newServer.weight )
-
-                    # FIXME: Doesn't "enabled" mean "monitored, but not pooled"?
-                    if not newServer.enabled and server.enabled:
-                        server.removeMonitors()
-                    elif newServer.enabled and not server.enabled:
-                        setupMonitoring.append(newServer)
-
-                    # FIXME: BUG. .pooled and .up will remain in default state (up),
-                    # and monitoring instances may not be setup.
-                    server.merge(newServer)
+                    server.merge(serverdict)            
+                    print "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight)
                 else:
                     # New server
                     server = Server.buildServer(serverdict)
                     self.servers[host] = server
-                    
-                    print "New server %s, weight %d" % ( host, server.weight )
-                    
-                    setupMonitoring.append(server)
-        
-        self.createMonitoringInstances(setupMonitoring)
-        
+                    server.createMonitoringInstances(self, self.lvsservice)
+                    print "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight )
+                
         # Remove old servers
         for host, server in delServers.iteritems():
-            server.enabled = False
-            server.removeMonitors()
+            print "Removing server %s (no longer found in new configuration)" % host
+            server.destroy()
             del self.servers[host]
         
-        self.assignServers(self.servers)    # FIXME   
+        # Assign the updated list of enabled servers to the LVSService instance
+        self.assignServers()   
 
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
@@ -334,7 +362,7 @@ class BGPFailover:
             for prefix in BGPFailover.prefixes:
                 attrSet = bgp.FrozenAttributeSet([bgp.OriginAttribute(),
                                                   bgp.ASPathAttribute(asPath),
-                                                  bgp.NextHopAttribute(str(prefix))])
+                                                  bgp.NextHopAttribute(bgp.NextHopAttribute.ANY)])
                 advertisements.add(bgp.Advertisement(prefix, attrSet))
             
             self.bgpPeering.setAdvertisements(advertisements)
@@ -388,6 +416,16 @@ class ConfigDict(dict):
                 return False
             else:
                 raise ValueError
+    
+    def getfloat(self, key, default=None):
+        try:
+            return float(self[key])
+        except KeyError:
+            if default is not None:
+                return default
+            else:
+                raise
+        # do not intercept ValueError
                 
 def parseCommandLine(configuration):
     """
