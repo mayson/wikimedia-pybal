@@ -88,7 +88,7 @@ class IPVSManager:
             server:    Server
         """
                 
-        return '-d ' + cls.subCommandService(service) + ' -r ' + server.host
+        return '-d ' + cls.subCommandService(service) + ' -r ' + (server.ip or server.host)
     commandRemoveServer = classmethod(commandRemoveServer)
     
     def commandAddServer(cls, service, server):
@@ -100,7 +100,7 @@ class IPVSManager:
             server:    Server
         """        
         
-        cmd = '-a ' + cls.subCommandService(service) + ' -r ' + server.host
+        cmd = '-a ' + cls.subCommandService(service) + ' -r ' + (server.ip or server.host)
         
         # Include weight if specified
         if server.weight:
@@ -118,7 +118,7 @@ class IPVSManager:
             server:    Server
         """        
         
-        cmd = '-e ' + cls.subCommandService(service) + ' -r ' + server.host
+        cmd = '-e ' + cls.subCommandService(service) + ' -r ' + (server.ip or server.host)
         
         # Include weight if specified
         if server.weight:
@@ -141,7 +141,7 @@ class LVSService:
         """Constructor"""
         
         self.name = name
-        self.servers = {}
+        self.servers = set()
         
         if (protocol not in self.SVC_PROTOS
             or scheduler not in self.SVC_SCHEDULERS):
@@ -179,11 +179,6 @@ class LVSService:
         # Remove a previous service and add the new one
         cmdList = [self.ipvsManager.commandRemoveService(self.service()), 
                    self.ipvsManager.commandAddService(self.service())]
-        
-        # Add realservers
-        for server in self.servers.itervalues():
-            cmdList.append(self.ipvsManager.commandAddServer(self.service(), server))
-        
         self.ipvsManager.modifyState(cmdList)
 
     def assignServers(self, newServers):
@@ -191,49 +186,24 @@ class LVSService:
         Takes a (new) set of servers (as a host->Server dictionary) and updates
         the LVS state accordingly.
         """
-                
-        # Compute set of servers to delete and edit
-        removeServers, editServers = [], []
-        for hostname, server in self.servers.iteritems():
-            if hostname not in newServers:
-                removeServers.append(server)
-            else:
-                editServers.append(server)
-        
-        # Compute set of servers to add
-        addServers = []
-        for hostname, server in newServers.iteritems():
-            if hostname not in self.servers:
-                addServers.append(server)
-        
-        self.servers = dict(newServers) # shallow copy
-        cmdList = []
-        
-        # Add new servers first
-        for server in addServers:
-            cmdList.append(self.ipvsManager.commandAddServer(self.service(), server))
-            server.pooled = True
-        
-        # Edit existing servers
-        for server in editServers:
-            cmdList.append(self.ipvsManager.commandEditServer(self.service(), server))
 
-        # Remove servers
-        for server in removeServers:
-            cmdList.append(self.ipvsManager.commandRemoveServer(self.service(), server))
-            server.pooled = False
+        cmdList = [self.ipvsManager.commandAddServer(self.service(), server) for server in newServers - self.servers] + \
+                [self.ipvsManager.commandEditServer(self.service(), server) for server in newServers & self.servers] + \
+                [self.ipvsManager.commandRemoveServer(self.service(), server) for server in self.servers - newServers]
 
+        self.servers = newServers
         self.ipvsManager.modifyState(cmdList)
     
     def addServer(self, server):
         """Adds (pools) a single Server to the LVS state"""
         
-        if server.host not in self.servers:
+        if server not in self.servers:
             cmdList = [self.ipvsManager.commandAddServer(self.service(), server)]
         else:
+            print "WARNING: possible bug; adding previously existing server to LVS"
             cmdList = [self.ipvsManager.commandEditServer(self.service(), server)]
             
-        self.servers[server.host] = server
+        self.servers.add(server)
         
         self.ipvsManager.modifyState(cmdList)
         server.pooled = True
@@ -243,7 +213,12 @@ class LVSService:
         
         cmdList = [self.ipvsManager.commandRemoveServer(self.service(), server)]
         
-        del self.servers[server.host]    # May raise KeyError
+        self.servers.remove(server) # May raise KeyError
 
         server.pooled = False        
         self.ipvsManager.modifyState(cmdList)
+    
+    def getDepoolThreshold(self):
+        """Returns the threshold below which no more down servers will be depooled"""
+        
+        return self.configuration.getfloat('depool-threshold', .5)
