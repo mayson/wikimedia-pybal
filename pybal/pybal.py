@@ -599,7 +599,7 @@ def main():
         try:
             configdict = util.ConfigDict(config.items('global'))
         except:
-            configdict = {}
+            configdict = util.ConfigDict()
         configdict.update(cliconfig)
         bgpannouncement = BGPFailover(configdict)
 
