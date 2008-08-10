@@ -594,7 +594,15 @@ def main():
                     configURL=config.get(section, 'config'))
                 print "Created LVS service '%s'" % section
         
+        
+        # Set up BGP
+        try:
+            configdict = util.ConfigDict(config.items('global'))
+        except:
+            configdict = {}
+        configdict.update(cliconfig)
         bgpannouncement = BGPFailover(configdict)
+
         reactor.run()
     finally:
         terminate()
