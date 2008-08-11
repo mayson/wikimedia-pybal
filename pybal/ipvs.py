@@ -186,9 +186,6 @@ class LVSService:
         Takes a (new) set of servers (as a host->Server dictionary) and updates
         the LVS state accordingly.
         """
-        
-        for server in newServers - self.servers:
-            self.initServer(server)
 
         cmdList = [self.ipvsManager.commandAddServer(self.service(), server) for server in newServers - self.servers] + \
                 [self.ipvsManager.commandEditServer(self.service(), server) for server in newServers & self.servers] + \
@@ -199,8 +196,6 @@ class LVSService:
     
     def addServer(self, server):
         """Adds (pools) a single Server to the LVS state"""
-        
-        self.initServer(server)
         
         if server not in self.servers:
             cmdList = [self.ipvsManager.commandAddServer(self.service(), server)]
@@ -224,7 +219,7 @@ class LVSService:
         self.ipvsManager.modifyState(cmdList)
     
     def initServer(self, server):
-        """Initializes server attributes with LVS service specific configuration."""
+        """Initializes a server instance with LVS service specific configuration."""
         
         server.port = self.port
     
