@@ -226,7 +226,7 @@ class LVSService:
     def initServer(self, server):
         """Initializes server attributes with LVS service specific configuration."""
         
-        server.port = self.configuration.getint('port', 80)
+        server.port = self.port
     
     def getDepoolThreshold(self):
         """Returns the threshold below which no more down servers will be depooled"""
