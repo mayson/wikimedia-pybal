@@ -326,6 +326,8 @@ class Coordinator:
                 else:
                     # New server
                     server = Server.buildServer(serverdict)
+                    # Initialize with LVS service specific configuration 
+                    self.lvsservice.initServer(server)
                     self.servers[host] = server
                     server.createMonitoringInstances(self, self.lvsservice)
                     print "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight )
