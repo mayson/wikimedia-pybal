@@ -72,6 +72,19 @@ class MonitoringProtocol(object):
         
         print "[%s] %s (%s): %s" % (self.__name__, self.server.host, self.server.textStatus(), text)
     
+    def _getConfigBool(self, optionname, default=None):
+        return self.configuration.getboolean('%s.%s' % (self.__name__.lower(), optionname), default)
+            
+    def _getConfigInt(self, optionname, default=None):
+        return self.configuration.getint('%s.%s' % (self.__name__.lower(), optionname), default)
+    
+    def _getConfigString(self, optionname):
+        val = self.configuration[self.__name__.lower() + '.' + optionname]
+        if type(val) == str:
+            return val
+        else:
+            raise ValueError, "Value of %s is not a string" % optionname
+    
     def _getConfigStringList(self, optionname):
         """
         Takes a (string) value, eval()s it and checks whether it
@@ -86,5 +99,5 @@ class MonitoringProtocol(object):
             # Checked that each list member is a string
             return val
         else:
-            raise ValueError, "Value '%s' is not a string or stringlist" % val
+            raise ValueError, "Value of %s is not a string or stringlist" % optionname
     

@@ -44,7 +44,7 @@ class ConfigDict(dict):
         try:
             return int(self[key])
         except KeyError:
-            if defaut is not None:
+            if default is not None:
                 return default
             else:
                 raise
