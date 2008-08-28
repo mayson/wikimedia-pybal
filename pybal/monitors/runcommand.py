@@ -183,15 +183,10 @@ class ProcessGroupProcess(process.Process):
             try: self.timeoutCall.cancel()
             except: pass
 
-        #self.status = status
-        #self.lostProcess = True
-        
         pgid = -self.pid
-        
         try:
             process.Process.processEnded(self, status)
-        finally:
-            
+        finally:        
             # The process group leader may have terminated, but child process in
             # the group may still be alive. Mass slaughter.
             try:
@@ -204,9 +199,6 @@ class ProcessGroupProcess(process.Process):
                     raise
             else:
                 self.proto.leftoverProcesses(True)  
-        #finally:
-        #    self.pid = None
-        #    self.maybeCallProcessEnded()
 
     def _setupSession(self):
         os.setsid()
