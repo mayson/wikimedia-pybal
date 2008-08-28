@@ -9,7 +9,7 @@ $Id$
 
 from pybal import monitor
 
-import os, sys, signal
+import os, sys, signal, errno
 
 from twisted.internet import reactor, process, error
 
@@ -180,12 +180,33 @@ class ProcessGroupProcess(process.Process):
 
     def processEnded(self, status):
         if self.timeoutCall:
-            try:
-                self.timeoutCall.cancel()
-            except:
-                pass
+            try: self.timeoutCall.cancel()
+            except: pass
+
+        #self.status = status
+        #self.lostProcess = True
         
-        process.Process.processEnded(self, status)
+        pgid = -self.pid
+        
+        try:
+            process.Process.processEnded(self, status)
+        finally:
+            
+            # The process group leader may have terminated, but child process in
+            # the group may still be alive. Mass slaughter.
+            try:
+                self.signalProcessGroup(signal.SIGKILL, pgid)
+            except OSError, e:
+                if e.errno == errno.EPERM:
+                    self.proto.leftoverProcesses(False)
+                elif e.errno != errno.ESRCH:
+                    print "pgid:", pgid, "e:", e
+                    raise
+            else:
+                self.proto.leftoverProcesses(True)  
+        #finally:
+        #    self.pid = None
+        #    self.maybeCallProcessEnded()
 
     def _setupSession(self):
         os.setsid()
@@ -197,7 +218,10 @@ class ProcessGroupProcess(process.Process):
         
         # Kill the process group
         if not self.lostProcess:
-            os.kill(-self.pid, signal.SIGKILL)
+            self.signalProcessGroup(signal.SIGKILL)
+    
+    def signalProcessGroup(self, signal, pgid=None):
+        os.kill(pgid or -self.pid, signal)
 
 class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
     """
@@ -216,10 +240,13 @@ class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
         # Call ancestor constructor
         super(RunCommandMonitoringProtocol, self).__init__(coordinator, server, configuration)
 
+        locals = {  'server':   server
+        }
+
         self.intvCheck = self._getConfigInt('interval', self.INTV_CHECK)
         self.timeout = self._getConfigInt('timeout', self.TIMEOUT_RUN)
         self.command = self._getConfigString('command')
-        self.arguments = self._getConfigStringList('arguments')
+        self.arguments = self._getConfigStringList('arguments', locals=locals)
         self.logOutput = self._getConfigBool('log-output', True)
 
         self.checkCall = None
@@ -244,7 +271,10 @@ class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
         if self.checkCall and self.checkCall.active():
             self.checkCall.cancel()
 
-        # FIXME: Kill any currently running check
+        # Try to kill any running check
+        if self.runningProcess is not None:
+            try: self.runningProcess.signalProcess(signal.SIGKILL)
+            except error.ProcessExitedAlready: pass
     
     def runCommand(self):
         """Periodically called method that does a single uptime check."""
@@ -272,7 +302,7 @@ class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
     
     def processEnded(self, reason):
         """
-        Called when the process has either ended
+        Called when the process has ended
         """
         
         if reason.check(error.ProcessDone):
@@ -285,6 +315,18 @@ class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
             self.checkCall = reactor.callLater(self.intvCheck, self.runCommand)
 
         reason.trap(error.ProcessDone, error.ProcessTerminated)
+
+    def leftoverProcesses(self, allKilled):
+        """
+        Called when the child terminated cleanly, but left some of
+        its child processes behind
+        """
+        
+        if allKilled:
+            msg = "WARNING: Command %s %s left child processes behind, which have been killed!"
+        else:
+            msg = "WARNING: Command %s %s left child processes behind, and not all could be killed!"
+        self.report(msg % (self.command, str(self.arguments)))
 
     def _spawnProcess(self, processProtocol, executable, args=(),
                      env={}, path=None,

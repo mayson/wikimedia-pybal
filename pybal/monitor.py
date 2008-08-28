@@ -85,14 +85,14 @@ class MonitoringProtocol(object):
         else:
             raise ValueError, "Value of %s is not a string" % optionname
     
-    def _getConfigStringList(self, optionname):
+    def _getConfigStringList(self, optionname, locals=None, globals=None):
         """
         Takes a (string) value, eval()s it and checks whether it
         consists of either a single string, or a single list of
         strings
         """
         
-        val = eval(self.configuration[self.__name__.lower() + '.' + optionname])
+        val = eval(self.configuration[self.__name__.lower() + '.' + optionname], locals, globals)
         if type(val) == str:
             return val
         elif type(val) == list and reduce(lambda x, y: type(x) == str and y, val):
