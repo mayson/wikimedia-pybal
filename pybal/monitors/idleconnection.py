@@ -21,16 +21,18 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     protocol = protocol.Protocol
 
     TIMEOUT_CLEAN_RECONNECT = 3
+    MAX_DELAY = 300
 
     __name__ = 'IdleConnection'
     
-    def __init__(self, coordinator, server, configuration={}):
+    def __init__(self, coordinator, server, configuration):
         """Constructor"""
         
         # Call ancestor constructor        
-        super(IdleConnectionMonitoringProtocol, self).__init__(coordinator, server, configuration={})
+        super(IdleConnectionMonitoringProtocol, self).__init__(coordinator, server, configuration)
         
-        self.toCleanReconnect = self.TIMEOUT_CLEAN_RECONNECT
+        self.toCleanReconnect = self._getConfigInt('timeout-clean-reconnect', self.TIMEOUT_CLEAN_RECONNECT)
+        self.maxDelay = self._getConfigInt('max-delay', self.MAX_DELAY)
         
         # Install cleanup handler
         reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
