@@ -11,12 +11,17 @@ $Id$
 
 import os, sys, signal
 
-import ipvs, monitor, bgp, util
+import ipvs, monitor, util
 
 from twisted.internet import reactor
 
 # TODO: make more dynamic
 from monitors import *
+
+try:
+    import bgp
+except:
+    pass
 
 class Server:
     """
@@ -389,7 +394,11 @@ class BGPFailover:
     
     @classmethod
     def addPrefix(cls, prefix):
-        cls.prefixes.add(bgp.IPv4IP(prefix)) # FIXME: IPv6
+        try:
+            cls.prefixes.add(bgp.IPv4IP(prefix)) # FIXME: IPv6
+        except NameError:
+            # bgp not imported
+            pass
                 
 def parseCommandLine(configuration):
     """
