@@ -57,7 +57,7 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         self._resultDown(reason.getErrorMessage())
         
         # Slowly reconnect
-        protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
+        self.retry(connector)
 
     def clientConnectionLost(self, connector, reason):
         """Called if the connection was previously established, but lost at some point."""
@@ -71,7 +71,7 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
             self._resultDown(reason.getErrorMessage())            
 
             # Slowly reconnect
-            protocol.ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
+            self.retry(connector)
     
     def clientConnectionMade(self):
         """Called by buildProtocol, to notify that the connection has been established."""
