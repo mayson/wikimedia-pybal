@@ -56,6 +56,8 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         # Immediately set status to down
         self._resultDown(reason.getErrorMessage())
         
+        self.report("Connection failed.")
+        
         # Slowly reconnect
         self.retry(connector)
 
@@ -70,6 +72,8 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
             # Connection lost in a non clean way. Immediately set status to down
             self._resultDown(reason.getErrorMessage())            
 
+            self.report("Connection lost.")
+
             # Slowly reconnect
             self.retry(connector)
     
@@ -81,6 +85,8 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
        
         # Reset reconnection delay
         self.resetDelay()
+        
+        self.report("Connection established.")
     
     def buildProtocol(self, addr):
         """

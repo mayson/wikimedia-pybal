@@ -210,6 +210,17 @@ class Coordinator:
         # Hand over enabled servers to LVSService
         self.lvsservice.assignServers(
             set([server for server in self.servers.itervalues() if server.pooled]))
+    
+    def refreshModifiedServers(self):
+        """
+        Calculates the status of every server that existed before the config change.
+        """
+
+        for server in self.servers.itervalues():
+            if not server.modified: continue
+            
+            server.up = server.calcStatus()
+            server.pooled = server.enabled and server.up
 
     def resultDown(self, monitor, reason=None):
         """
@@ -342,6 +353,9 @@ class Coordinator:
             print "Removing server %s (no longer found in new configuration)" % host
             server.destroy()
             del self.servers[host]
+        
+        # Calculate up status for previously existing, modified servers
+        self.refreshModifiedServers()
         
         # Assign the updated list of enabled servers to the LVSService instance
         self.assignServers()   
