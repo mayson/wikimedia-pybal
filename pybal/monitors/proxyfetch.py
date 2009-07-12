@@ -34,8 +34,8 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         # Call ancestor constructor
         super(ProxyFetchMonitoringProtocol, self).__init__(coordinator, server, configuration)
                 
-        self.intvCheck = self.INTV_CHECK
-        self.toGET = self.TIMEOUT_GET
+        self.intvCheck = self._getConfigInt('interval', self.INTV_CHECK)
+        self.toGET = self._getConfigInt('timeout', self.TIMEOUT_GET)
         
         self.checkCall = None
         
