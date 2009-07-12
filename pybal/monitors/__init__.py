@@ -7,4 +7,4 @@ The monitors package contains all (complete) monitoring implementations of PyBal
 $Id$
 """
 
-__all__ = [ 'proxyfetch', 'idleconnection', 'runcommand', 'vipping' ]
+__all__ = [ 'proxyfetch', 'idleconnection', 'runcommand' ]
