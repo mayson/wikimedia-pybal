@@ -1,3 +1,21 @@
+pybal (0.1+r53139-1) hardy; urgency=low
+
+  * New upstream version
+
+ -- Mark Bergsma <mark@wikimedia.org>  Sun, 12 Jul 2009 18:19:45 +0000
+
+pybal (0.1+r47293-1) hardy; urgency=low
+
+  * New upstream version
+
+ -- Mark Bergsma <mark@wikimedia.org>  Sun, 15 Feb 2009 16:08:55 +0000
+
+pybal (0.1+r40193-1) hardy; urgency=low
+
+  * New upstream version
+
+ -- Mark Bergsma <mark@wikimedia.org>  Thu, 28 Aug 2008 21:45:13 +0000
+
 pybal (0.1+r39185-1) hardy; urgency=low
 
   * New version
