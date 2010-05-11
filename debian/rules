@@ -60,7 +60,7 @@ install: build
 	# Add here commands to install the package into debian/pybal.
 	# Hack, distribute twisted bgp with PyBal for now.
 	wget -O pybal/bgp.py http://svn.wikimedia.org/svnroot/mediawiki/trunk/routing/twistedbgp/src/bgp.py
-	python setup.py install --prefix=debian/pybal/usr
+	python setup.py install --prefix=debian/pybal/usr --install-layout=deb
 	install -m 0755 main.py $(PREFIX)/usr/sbin/pybal
 	install -d -m 0755 $(PREFIX)/etc/pybal
 

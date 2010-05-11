@@ -1,3 +1,9 @@
+pybal (0.1+r53139-2) lucid; urgency=low
+
+  * Build for Lucid
+
+ -- Mark Bergsma <mark@wikimedia.org>  Tue, 11 May 2010 12:00:55 +0000
+
 pybal (0.1+r53139-1) hardy; urgency=low
 
   * New upstream version
