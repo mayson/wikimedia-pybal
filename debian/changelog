@@ -1,3 +1,15 @@
+pybal (0.1+r66395) lucid; urgency=low
+
+  * Newer TwistedBGP revision, fixing a bug with an inappropriate callback
+
+ -- Mark Bergsma <mark@wikimedia.org>  Thu, 13 May 2010 21:08:28 +0000
+
+pybal (0.1+r53139-3) lucid; urgency=low
+
+  * Newer TwistedBGP revision
+
+ -- Mark Bergsma <mark@wikimedia.org>  Tue, 11 May 2010 14:46:54 +0000
+
 pybal (0.1+r53139-2) lucid; urgency=low
 
   * Build for Lucid
