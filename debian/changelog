@@ -1,3 +1,10 @@
+pybal (0.1+r74215) lucid; urgency=low
+
+  * Newer TwistedBGP revision, fixing a bug where old BGP advertisements are
+    not (re)sent on a new connection.
+
+ -- Mark Bergsma <mark@wikimedia.org>  Sun, 03 Oct 2010 14:48:43 +0000
+
 pybal (0.1+r66395) lucid; urgency=low
 
   * Newer TwistedBGP revision, fixing a bug with an inappropriate callback
