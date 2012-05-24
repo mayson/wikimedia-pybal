@@ -59,7 +59,7 @@ install: build
 
 	# Add here commands to install the package into debian/pybal.
 	python setup.py install --prefix=debian/pybal/usr --install-layout=deb
-	install -m 0755 main.py $(PREFIX)/usr/sbin/pybal
+	install -m 0755 scripts/pybal $(PREFIX)/usr/sbin/pybal
 	install -d -m 0755 $(PREFIX)/etc/pybal
 
 	# Example configs
