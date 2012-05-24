@@ -1,72 +1,68 @@
 #! /bin/sh
-#
-# skeleton	example file to build /etc/init.d/ scripts.
-#		This file should be used to construct scripts for /etc/init.d.
-#
-#		Written by Miquel van Smoorenburg <miquels@cistron.nl>.
-#		Modified for Debian 
-#		by Ian Murdock <imurdock@gnu.ai.mit.edu>.
-#
-# Version:	@(#)skeleton  1.9  26-Feb-2001  miquels@cistron.nl
-#
+
+### BEGIN INIT INFO
+# Provides:             pybal
+# Required-Start:       $remote_fs $syslog $network
+# Required-Stop:        $remote_fs $syslog
+# Should-Start:         $named
+# Should-Stop:
+# Default-Start:        2 3 4 5
+# Default-Stop:         0 1 6
+# Short-Description:    PyBal
+# Description:          PyBal LVS monitor
+### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/pybal
+DAEMON_OPTS=""
 NAME=pybal
 DESC=pybal
+PIDFILE=/var/run/$NAME.pid
+
+. /lib/lsb/init-functions
 
 test -x $DAEMON || exit 0
 
-# Include pybal defaults if available
 if [ -f /etc/default/pybal ] ; then
 	. /etc/default/pybal
 fi
 
-set -e
-
 case "$1" in
   start)
-	echo -n "Starting $DESC: "
-	start-stop-daemon --start --quiet --pidfile /var/run/$NAME.pid \
-		--startas $DAEMON -- $DAEMON_OPTS
-	echo "$NAME."
+	if pidofproc -p $PIDFILE $DAEMON > /dev/null; then
+		log_failure_msg "Starting $DESC (already started)"
+		exit 0
+	fi
+	log_daemon_msg "Starting $DESC" "$NAME"
+	start-stop-daemon --start --quiet --pidfile $PIDFILE \
+		--exec $DAEMON -- $DAEMON_OPTS
+	log_end_msg $?
 	;;
   stop)
-	echo -n "Stopping $DESC: "
-	start-stop-daemon --stop --quiet --pidfile /var/run/$NAME.pid \
+	log_daemon_msg "Stopping $DESC" "$NAME"
+	start-stop-daemon --stop --quiet --pidfile $PIDFILE \
 		--name $NAME --oknodo
-	echo "$NAME."
+	case "$?" in
+		0) log_end_msg 0 ;;
+		1) log_progress_msg "(already stopped)"
+		   log_end_msg 0 ;;
+		*) log_end_msg 1 ;;
+	esac
 	;;
-  #reload)
-	#
-	#	If the daemon can reload its config files on the fly
-	#	for example by sending it SIGHUP, do it here.
-	#
-	#	If the daemon responds to changes in its config file
-	#	directly anyway, make this a do-nothing entry.
-	#
-	# echo "Reloading $DESC configuration files."
-	# start-stop-daemon --stop --signal 1 --quiet --pidfile \
-	#	/var/run/$NAME.pid --exec $DAEMON
-  #;;
-  restart|force-reload)
-	#
-	#	If the "reload" option is implemented, move the "force-reload"
-	#	option to the "reload" entry above. If not, "force-reload" is
-	#	just the same as "restart".
-	#
-	echo -n "Restarting $DESC: "
-	start-stop-daemon --stop --quiet --pidfile \
-		/var/run/$NAME.pid --name $NAME --oknodo
-	sleep 1
-	start-stop-daemon --start --quiet --pidfile \
-		/var/run/$NAME.pid --startas $DAEMON -- $DAEMON_OPTS
-	echo "$NAME."
+  reload|force-reload)
+	log_daemon_msg "Reloading $DESC" "$NAME"
+	start-stop-daemon --stop --quiet --signal 1 --pidfile $PIDFILE
+	log_end_msg $?
+	;;
+  restart)
+	$0 stop
+	$0 start
+	;;
+  status)
+	status_of_proc -p $PIDFILE $DAEMON $NAME && exit 0 || exit $?
 	;;
   *)
-	N=/etc/init.d/$NAME
-	# echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
-	echo "Usage: $N {start|stop|restart|force-reload}" >&2
+	echo "Usage: ${0} {start|stop|restart|force-reload|status}" >&2
 	exit 1
 	;;
 esac

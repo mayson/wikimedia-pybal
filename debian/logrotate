@@ -5,6 +5,8 @@
   missingok
   notifempty
   postrotate
-    kill -HUP `cat /var/run/pybal.pid`
+    if [ -e /var/run/pybal.pid ]; then
+      invoke-rc.d --quiet pybal force-reload > /dev/null
+    fi
   endscript
 }
