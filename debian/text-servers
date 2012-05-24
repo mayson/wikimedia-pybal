@@ -1,0 +1,5 @@
+{ 'host': 'server1.example.com', 'weight': 20, 'enabled': True }
+{ 'host': 'server2.example.com', 'weight': 15, 'enabled': False }
+{ 'host': 'server3.example.com' }
+{ 'host': 'server4.example.com' }
+{ 'host': 'server5.example.com' }
