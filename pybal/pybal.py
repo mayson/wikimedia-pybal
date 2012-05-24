@@ -9,17 +9,18 @@ LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 $Id$
 """
 
-import os, sys, signal
+from __future__ import absolute_import
 
-import ipvs, monitor, util
+import os, sys, signal
+from pybal import ipvs, monitor, util
 
 from twisted.internet import reactor
 
 # TODO: make more dynamic
-from monitors import *
+from pybal.monitors import *
 
 try:
-    import bgp
+    from pybal import bgp
 except:
     pass
 
@@ -550,8 +551,7 @@ def sighandler(signum, frame):
         terminate()
     elif signum == signal.SIGHUP:
         # Cycle logfiles
-        from util import LogFile
-        if isinstance(sys.stdout, LogFile):
+        if isinstance(sys.stdout, util.LogFile):
             print "Cycling log file..."
             sys.stdout.reopen()
 
@@ -588,10 +588,9 @@ def main():
             writePID()
             
             # Open a logfile
-            from util import LogFile
             try:
                 logfile = '/var/log/pybal.log'
-                sys.stdout = sys.stderr = LogFile(logfile)
+                sys.stdout = sys.stderr = util.LogFile(logfile)
             except:
                 print "Unable to open logfile %s, using stdout" % logfile  
 
