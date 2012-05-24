@@ -8,4 +8,6 @@ setup(name="pybal",
     author="Mark Bergsma",
     author_email="mark@nedworks.org",
     url="http://wikitech.wikimedia.org/view/Pybal",
-    packages = ['pybal', 'pybal.monitors'])
+    packages=['pybal', 'pybal.monitors'],
+    requires=['twisted'],
+    )
