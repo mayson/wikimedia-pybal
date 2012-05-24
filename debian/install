@@ -1,0 +1,3 @@
+scripts/pybal		usr/sbin
+debian/pybal.conf	etc/pybal
+debian/text-squids	etc/pybal
