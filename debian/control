@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Mark Bergsma <mark@wikimedia.org>
 Build-Depends: debhelper (>= 5)
 Standards-Version: 3.7.2
+Homepage: http://wikitech.wikimedia.org/view/Pybal
 
 Package: pybal
 Architecture: all

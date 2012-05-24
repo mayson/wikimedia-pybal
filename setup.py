@@ -7,5 +7,5 @@ setup(name="pybal",
     description="PyBal LVS monitor",
     author="Mark Bergsma",
     author_email="mark@nedworks.org",
-    url="http://svn.wikimedia.org/viewvc/svnroot/mediawiki/trunk/pybal",
+    url="http://wikitech.wikimedia.org/view/Pybal",
     packages = ['pybal', 'pybal.monitors'])
