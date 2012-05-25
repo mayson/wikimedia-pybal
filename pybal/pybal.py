@@ -36,10 +36,17 @@ class Server:
     # Set of attributes allowed to be overridden in a server list
     allowedConfigKeys = [ ('host', str), ('weight', int), ('enabled', bool) ]
     
-    def __init__(self, host):
+    FAMILY_INET, FAMILY_INET6 = range(2)
+    
+    def __init__(self, host, lvsservice, addressFamily=None):
         """Constructor"""        
         
         self.host = host
+        self.lvsservice = lvsservice
+        if addressFamily:
+            self.addressFamily = addressFamily
+        else: 
+            self.addressFamily = self.lvsservice.ip.contains(":") and self.FAMILY_INET6 or self.FAMILY_INET
         self.ip = None
         self.port = 80
         
@@ -59,7 +66,7 @@ class Server:
         #self.resolveHostname()
     
     def __eq__(self, other):
-        return instanceof(other, Server) and self.host == other.host
+        return isinstance(other, Server) and self.host == other.host and self.lvsservice == other.lvsservice
     
     def __hash__(self):
         return hash(self.host)
@@ -86,15 +93,18 @@ class Server:
         """Attempts to resolve the server's hostname to an IP address for better reliability."""
         
         if not self.ip:
-            from twisted.names import client
-            return client.lookupAddress(self.host).addCallback(self._hostnameResolved)
+            from twisted.names import client, dns
+            if self.addressFamily == self.FAMILY_INET:
+                return client.lookupAddress(self.host).addCallback(self._hostnameResolved, dns.A)
+            elif self.addressFamily == self.FAMILY_INET6:
+                return client.lookupIPV6Address(self.host).addCallback(self._hostnameResolved, dns.AAAA)
         else:
             from twisted.internet import defer
             return defer.succeed(self.ip)
     
-    def _hostnameResolved(self, lookupResult):
+    def _hostnameResolved(self, lookupResult, recordType):
         try:
-            self.ip = lookupResult[0][0].payload.dottedQuad()   # FIXME: IPv6
+            self.ip = str(lookupResult.lookupRecordType(recordType))
         except:
             pass
 
@@ -167,14 +177,14 @@ class Server:
         self.modified = True    # Indicate that this instance previously existed  
     
     @classmethod
-    def buildServer(cls, configuration):
+    def buildServer(cls, configuration, lvsservice):
         """
         Factory method which builds a Server instance from a
         dictionary of (allowed) configuration attributes
         """
 
-        server = cls(configuration['host'])        # create a new instance...
-        server.merge(configuration)                # ...and override attributes
+        server = cls(configuration['host'], lvsservice) # create a new instance...
+        server.merge(configuration)                     # ...and override attributes
         server.modified = False
         
         return server
@@ -342,7 +352,7 @@ class Coordinator:
                     print "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight)
                 else:
                     # New server
-                    server = Server.buildServer(serverdict)
+                    server = Server.buildServer(serverdict, self.lvsservice)
                     # Initialize with LVS service specific configuration 
                     self.lvsservice.initServer(server)
                     self.servers[host] = server
