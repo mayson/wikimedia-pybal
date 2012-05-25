@@ -116,7 +116,7 @@ class IPVSManager:
             server:    Server
         """
                 
-        return '-d ' + cls.subCommandService(service) + cls.subCommandServer(server)
+        return " ".join(['-d ', cls.subCommandService(service), cls.subCommandServer(server)])
     commandRemoveServer = classmethod(commandRemoveServer)
     
     def commandAddServer(cls, service, server):
@@ -128,7 +128,7 @@ class IPVSManager:
             server:    Server
         """        
         
-        cmd = '-a ' + cls.subCommandService(service) + cls.subCommandServer(server)
+        cmd = " ".join(['-a ', cls.subCommandService(service), cls.subCommandServer(server)])
         
         # Include weight if specified
         if server.weight:
@@ -146,7 +146,7 @@ class IPVSManager:
             server:    Server
         """        
         
-        cmd = '-e ' + cls.subCommandService(service) + cls.subCommandServer(server)
+        cmd = " ".join(['-e ', cls.subCommandService(service), cls.subCommandServer(server)])
         
         # Include weight if specified
         if server.weight:
