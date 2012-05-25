@@ -46,7 +46,7 @@ class Server:
         if addressFamily:
             self.addressFamily = addressFamily
         else: 
-            self.addressFamily = self.lvsservice.ip.contains(":") and self.FAMILY_INET6 or self.FAMILY_INET
+            self.addressFamily = self.lvsservice.ip.find(":") and self.FAMILY_INET6 or self.FAMILY_INET
         self.ip = None
         self.port = 80
         

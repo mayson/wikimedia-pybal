@@ -50,7 +50,7 @@ class IPVSManager:
         protocol = {'tcp': '-t', 
                     'udp': '-u'}[service[0]]
         
-        if service[1].contains(":"):
+        if service[1].find(":"):
             # IPv6 address
             service = ' [%s]:%d' % service[1:3]
         else:
@@ -70,7 +70,7 @@ class IPVSManager:
         """
         
         if server.ip:
-            if server.ip.contains(":"):
+            if server.ip.find(":"):
                 return '-r [%s]' % server.ip
             else:
                 return '-r %s' % server.ip
