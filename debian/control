@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Mark Bergsma <mark@wikimedia.org>
 Uploaders: Faidon Liambotis <faidon@wikimedia.org>
-Build-Depends: debhelper (>= 8)
+Build-Depends: debhelper (>= 8), python-all
 Standards-Version: 3.9.3
 Homepage: http://wikitech.wikimedia.org/view/Pybal
 
