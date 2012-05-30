@@ -9,6 +9,8 @@ from pybal import monitor
 
 from twisted.internet import reactor, protocol
 
+import random
+
 class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.ReconnectingClientFactory):
     """
     Monitor that checks uptime by keeping an idle TCP connection open to the
@@ -100,4 +102,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     def _connect(self, *args, **kwargs):
         """Starts a TCP connection attempt"""
         
-        reactor.connectTCP(self.server.host, self.server.port, self, *args, **kwargs)
+        try:
+            host = random.choice(self.server.ip)
+        except (TypeError, IndexError):
+            host = self.server.host
+        
+        reactor.connectTCP(host, self.server.port, self, *args, **kwargs)

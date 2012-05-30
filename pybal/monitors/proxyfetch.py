@@ -72,9 +72,13 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         
         import random
         url = random.choice(self.URL)
+        try:
+            host = random.choice(self.server.ip)
+        except (TypeError, IndexError):
+            host = self.server.host
         
         self.checkStartTime = seconds()
-        self.getProxyPage(url, method='GET', host=self.server.host, port=self.server.port,
+        self.getProxyPage(url, method='GET', host=host, port=self.server.port,
                             timeout=self.toGET, followRedirect=False
             ).addCallbacks(self._fetchSuccessful, self._fetchFailed
             ).addBoth(self._checkFinished)
