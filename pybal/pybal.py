@@ -11,10 +11,11 @@ $Id$
 
 from __future__ import absolute_import
 
-import os, sys, signal
+import os, sys, signal, socket
 from pybal import ipvs, monitor, util
 
 from twisted.internet import reactor
+from twisted.names import client, dns
 
 # TODO: make more dynamic
 from pybal.monitors import *
@@ -35,9 +36,7 @@ class Server:
     
     # Set of attributes allowed to be overridden in a server list
     allowedConfigKeys = [ ('host', str), ('weight', int), ('enabled', bool) ]
-    
-    FAMILY_INET, FAMILY_INET6 = range(2)
-    
+        
     def __init__(self, host, lvsservice, addressFamily=None):
         """Constructor"""        
         
@@ -46,7 +45,7 @@ class Server:
         if addressFamily:
             self.addressFamily = addressFamily
         else: 
-            self.addressFamily = self.lvsservice.ip.find(":") and self.FAMILY_INET6 or self.FAMILY_INET
+            self.addressFamily = self.lvsservice.ip.find(":") and socket.AF_INET6 or socket.AF_INET
         self.ip = None
         self.port = 80
         
@@ -63,7 +62,7 @@ class Server:
         self.enabled = True
         self.modified = None
         
-        #self.resolveHostname()
+        self.resolveHostname()
     
     def __eq__(self, other):
         return isinstance(other, Server) and self.host == other.host and self.lvsservice == other.lvsservice
@@ -91,22 +90,29 @@ class Server:
 
     def resolveHostname(self):
         """Attempts to resolve the server's hostname to an IP address for better reliability."""
-        
-        if not self.ip:
-            from twisted.names import client, dns
-            if self.addressFamily == self.FAMILY_INET:
-                return client.lookupAddress(self.host).addCallback(self._hostnameResolved, dns.A)
-            elif self.addressFamily == self.FAMILY_INET6:
-                return client.lookupIPV6Address(self.host).addCallback(self._hostnameResolved, dns.AAAA)
-        else:
-            from twisted.internet import defer
-            return defer.succeed(self.ip)
+
+        timeout = [1]
+
+        if self.addressFamily == socket.AF_INET:
+            query = dns.Query(self.host, dns.A)
+            lookup = client.lookupAddress(self.host, timeout)
+        elif self.addressFamily == socket.AF_INET6:
+            query = dns.Query(self.host, dns.AAAA)
+            lookup = client.lookupIPV6Address(self.host, timeout)
+
+        return lookup.addCallback(self._hostnameResolved, query)
     
-    def _hostnameResolved(self, lookupResult, recordType):
-        try:
-            self.ip = str(lookupResult.lookupRecordType(recordType))
-        except:
-            pass
+    def _hostnameResolved(self, (answers, authority, additional), query):
+        self.ip = [socket.inet_ntop(self.addressFamily, r.payload.address)
+                   for r in answers
+                   if r.name == query.name and r.type == query.type]
+
+        # TODO: expire TTL
+        #if self.ip:
+        #    minTTL = min([r.ttl for r in answers
+        #          if r.name == query.name and r.type == query.type])   
+        
+        print "Resolved", self.host, "to addresses", " ".join(self.ip) 
 
     def destroy(self):
         self.enabled = False
