@@ -3,8 +3,6 @@ idleconnection.py
 Copyright (C) 2006 by Mark Bergsma <mark@nedworks.org>
 
 Monitor class implementations for PyBal
-
-$Id: monitor.py 17191 2006-10-22 11:33:00Z mark $
 """
 
 from pybal import monitor

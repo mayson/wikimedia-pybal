@@ -1,10 +1,8 @@
 """
 ipvsadm.py
-Copyright (C) 2006-2008 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2012 by Mark Bergsma <mark@nedworks.org>
 
 LVS state/configuration classes for PyBal
-
-$Id$
 """
 
 import os

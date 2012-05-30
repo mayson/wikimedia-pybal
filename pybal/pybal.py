@@ -2,11 +2,9 @@
 
 """
 PyBal
-Copyright (C) 2006-2008 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-20012 by Mark Bergsma <mark@nedworks.org>
 
 LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
-
-$Id$
 """
 
 from __future__ import absolute_import
@@ -22,7 +20,7 @@ from pybal.monitors import *
 
 try:
     from pybal import bgp
-except:
+except ImportError:
     pass
 
 class Server:
@@ -331,8 +329,9 @@ class Coordinator:
         and calls _parseConfig if it's different.
         """
         
-        import md5
-        newHash = md5.new(configuration)
+        import hashlib
+        newHash = hashlib.md5()
+        newHash.update(configuration)
         if not self.configHash or self.configHash.digest() != newHash.digest():
             print 'New configuration received'
             
@@ -405,7 +404,7 @@ class BGPFailover:
             
             self.bgpPeering.setAdvertisements(advertisements)
             self.bgpPeering.automaticStart()
-        except:
+        except Exception:
             print "Could not set up BGP peering instance."
             raise
         else:
@@ -414,7 +413,7 @@ class BGPFailover:
             try:
                 # Try to listen on the BGP port, not fatal if fails
                 reactor.listenTCP(bgp.PORT, bgp.BGPServerFactory({self.bgpPeering.peerAddr: self.bgpPeering}))
-            except:
+            except Exception:
                 pass
     
     def closeSession(self, peering):
@@ -506,8 +505,6 @@ def createDaemon():
             # Ensure that the daemon doesn't keep any directory in use.  Failure
             # to do this could make a filesystem unmountable.
             os.chdir( "/" )
-            # Give the child complete control over permissions.
-            os.umask( 0 )
         else:
             os._exit( 0 )      # Exit parent (the first child) of the second child.
     else:
@@ -541,7 +538,7 @@ def writePID():
     
     try:
         file('/var/run/pybal.pid', 'w').write(str(os.getpid()) + '\n')
-    except:
+    except Exception:
         raise
 
 def terminate():
@@ -607,7 +604,7 @@ def main():
             try:
                 logfile = '/var/log/pybal.log'
                 sys.stdout = sys.stderr = util.LogFile(logfile)
-            except:
+            except Exception:
                 print "Unable to open logfile %s, using stdout" % logfile  
 
         # Install signal handlers
@@ -638,7 +635,7 @@ def main():
         # Set up BGP
         try:
             configdict = util.ConfigDict(config.items('global'))
-        except:
+        except Exception:
             configdict = util.ConfigDict()
         configdict.update(cliconfig)
         bgpannouncement = BGPFailover(configdict)
