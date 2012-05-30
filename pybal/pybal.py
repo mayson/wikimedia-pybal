@@ -21,7 +21,7 @@ from pybal.monitors import *
 
 try:
     from pybal import bgp
-except Exception:
+except ImportError:
     pass
 
 class Server:
