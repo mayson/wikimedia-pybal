@@ -21,7 +21,7 @@ from pybal.monitors import *
 
 try:
     from pybal import bgp
-except:
+except Exception:
     pass
 
 class Server:
@@ -95,7 +95,7 @@ class Server:
     def _hostnameResolved(self, lookupResult):
         try:
             self.ip = lookupResult[0][0].payload.dottedQuad()   # FIXME: IPv6
-        except:
+        except Exception:
             pass
 
     def destroy(self):
@@ -389,7 +389,7 @@ class BGPFailover:
             
             self.bgpPeering.setAdvertisements(advertisements)
             self.bgpPeering.automaticStart()
-        except:
+        except Exception:
             print "Could not set up BGP peering instance."
             raise
         else:
@@ -398,7 +398,7 @@ class BGPFailover:
             try:
                 # Try to listen on the BGP port, not fatal if fails
                 reactor.listenTCP(bgp.PORT, bgp.BGPServerFactory({self.bgpPeering.peerAddr: self.bgpPeering}))
-            except:
+            except Exception:
                 pass
     
     def closeSession(self, peering):
@@ -523,7 +523,7 @@ def writePID():
     
     try:
         file('/var/run/pybal.pid', 'w').write(str(os.getpid()) + '\n')
-    except:
+    except Exception:
         raise
 
 def terminate():
@@ -589,7 +589,7 @@ def main():
             try:
                 logfile = '/var/log/pybal.log'
                 sys.stdout = sys.stderr = util.LogFile(logfile)
-            except:
+            except Exception:
                 print "Unable to open logfile %s, using stdout" % logfile  
 
         # Install signal handlers
@@ -620,7 +620,7 @@ def main():
         # Set up BGP
         try:
             configdict = util.ConfigDict(config.items('global'))
-        except:
+        except Exception:
             configdict = util.ConfigDict()
         configdict.update(cliconfig)
         bgpannouncement = BGPFailover(configdict)
