@@ -314,7 +314,8 @@ class Coordinator:
         """
         
         import hashlib
-        newHash = hashlib.md5().update(configuration)
+        newHash = hashlib.md5()
+        newHash.update(configuration)
         if not self.configHash or self.configHash.digest() != newHash.digest():
             print 'New configuration received'
             
