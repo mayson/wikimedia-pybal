@@ -3,8 +3,6 @@ runcommand.py
 Copyright (C) 2008 by Mark Bergsma <mark@nedworks.org>
 
 Monitor class implementations for PyBal
-
-$Id$
 """
 
 from pybal import monitor
