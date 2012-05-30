@@ -315,8 +315,8 @@ class Coordinator:
         and calls _parseConfig if it's different.
         """
         
-        import md5
-        newHash = md5.new(configuration)
+        import hashlib
+        newHash = hashlib.md5().update(configuration)
         if not self.configHash or self.configHash.digest() != newHash.digest():
             print 'New configuration received'
             
