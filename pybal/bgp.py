@@ -391,7 +391,7 @@ class ASPathAttribute(Attribute):
                 
                 postfix = postfix[2+length*2:]
                 self.value.append( (segType, asPath) )
-        except:
+        except Exception:
             raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ASPATH)
     
     def encode(self):
@@ -1295,7 +1295,7 @@ class BGP(protocol.Protocol):
         # Parse the header
         try:
             marker, length, type = struct.unpack('!16sHB', buf[:HDR_LEN])
-        except:
+        except Exception:
             self.fsm.headerError(ERR_MSG_HDR_CONN_NOT_SYNC)
         
         # Check the length of the message
@@ -1333,7 +1333,7 @@ class BGP(protocol.Protocol):
                             
         try:
             peerVersion, peerASN, peerHoldTime, peerBgpId, paramLen = struct.unpack('!BHHIB', message[:10])
-        except:
+        except Exception:
             raise BadMessageLength(self)
         
         # Check whether these values are acceptable
@@ -1372,7 +1372,7 @@ class BGP(protocol.Protocol):
                 self.fsm.updateError(e.suberror)
             else:
                 raise
-        except:
+        except Exception:
             # RFC4271 dictates that we send ERR_MSG_UPDATE Malformed Attribute List
             # in this case
             self.fsm.updateError(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
@@ -1390,7 +1390,7 @@ class BGP(protocol.Protocol):
         
         try:
             error, suberror = struct.unpack('!BB', message[:2])
-        except:
+        except Exception:
             raise BadMessageLength(self)
         
         return error, suberror, message[2:]
