@@ -9,7 +9,7 @@ LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 
 from __future__ import absolute_import
 
-import os, sys, signal, socket
+import os, sys, signal, socket, random
 from pybal import ipvs, monitor, util
 
 from twisted.internet import reactor, defer
@@ -106,9 +106,9 @@ class Server:
         return defer.DeferredList(lookups).addCallback(self._hostnameResolved)
     
     def _lookupFinished(self, (answers, authority, additional), query):
-        ips = [socket.inet_ntop(self.addressFamily, r.payload.address)
+        ips = set([socket.inet_ntop(self.addressFamily, r.payload.address)
                    for r in answers
-                   if r.name == query.name and r.type == query.type]
+                   if r.name == query.name and r.type == query.type])
 
         if query.type == dns.A:
             self.ip4_addresses = ips
@@ -134,7 +134,7 @@ class Server:
             }[self.addressFamily]
         
         if not self.ip or self.ip not in ip_addresses:
-            self.ip = ip_addresses[0]
+            self.ip = random.choice(ip_addresses)
             # TODO: (re)pool
 
     def destroy(self):
