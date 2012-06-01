@@ -12,6 +12,7 @@ from __future__ import absolute_import
 import os, sys, signal, socket, random
 from pybal import ipvs, monitor, util
 
+from twisted.python import failure
 from twisted.internet import reactor, defer
 from twisted.names import client, dns
 
@@ -51,17 +52,16 @@ class Server:
         self.monitors = []
         
         # A few invariants that SHOULD be maintained (but currently may not be):
-        # P0: pooled => enabled
-        # P1: up => pooled \/ !enabled
+        # P0: pooled => enabled /\ ready
+        # P1: up => pooled \/ !enabled \/ !ready
         # P2: pooled => up \/ !canDepool
         
         self.weight = self.DEF_WEIGHT
-        self.up = self.DEF_STATE
-        self.pooled = self.up
+        self.up = False
+        self.pooled = False
         self.enabled = True
+        self.ready = False
         self.modified = None
-        
-        self.resolveHostname()
     
     def __eq__(self, other):
         return isinstance(other, Server) and self.host == other.host and self.lvsservice == other.lvsservice
@@ -90,11 +90,9 @@ class Server:
     def resolveHostname(self):
         """Attempts to resolve the server's hostname to an IP address for better reliability."""
 
-        timeout = [1]
+        timeout = [1, 2, 5]
         lookups = []
         
-        # FIXME: error handling
-
         query = dns.Query(self.host, dns.A)
         lookups.append(client.lookupAddress(self.host, timeout
             ).addCallback(self._lookupFinished, query))
@@ -103,7 +101,7 @@ class Server:
         lookups.append(client.lookupIPV6Address(self.host, timeout
             ).addCallback(self._lookupFinished, query))
 
-        return defer.DeferredList(lookups).addCallback(self._hostnameResolved)
+        return defer.DeferredList(lookups).addBoth(self._hostnameResolved)
     
     def _lookupFinished(self, (answers, authority, additional), query):
         ips = set([socket.inet_ntop(self.addressFamily, r.payload.address)
@@ -133,16 +131,54 @@ class Server:
                 self.ip6_addresses
             }[self.addressFamily]
         
-        if not self.ip or self.ip not in ip_addresses:
-            self.ip = random.choice(ip_addresses)
-            # TODO: (re)pool
+        try:
+            if not self.ip or self.ip not in ip_addresses:
+                self.ip = random.choice(list(ip_addresses))
+                # TODO: (re)pool
+        except IndexError:
+            return failure.Failure() # TODO: be more specific?
 
     def destroy(self):
         self.enabled = False
         self.removeMonitors()
-         
-    def createMonitoringInstances(self, coordinator, lvsservice):
+
+    def initialize(self, coordinator):
+        """
+        Initializes this server instance and fires a Deferred
+        when ready for use (self.ready == True)
+        """
+
+        self.createMonitoringInstances(coordinator)
+        d = self.resolveHostname()
+        
+        return d.addCallbacks(self._ready, self._initFailed)
+    
+    def _ready(self, result):
+        """
+        Called when initialization has finished.
+        """
+
+        self.ready = True
+        self.up = self.DEF_STATE
+        self.pooled = self.DEF_STATE
+        self.maintainState()
+        
+        return True
+
+    def _initFailed(self, fail):
+        """
+        Called when initialization failed
+        """
+        
+        assert self.ready == False
+        self.maintainState()
+        
+        return False # Continue on success callback chain
+
+    def createMonitoringInstances(self, coordinator):
         """Creates and runs monitoring instances for this Server"""        
+        
+        lvsservice = self.lvsservice
         
         try:
             monitorlist = eval(lvsservice.configuration['monitors'])
@@ -187,7 +223,7 @@ class Server:
         """Maintains a few invariants on configuration changes"""
         
         # P0
-        if not self.enabled:
+        if not self.enabled or not self.ready:
             self.pooled = False
         # P1
         if not self.pooled and self.enabled:
@@ -236,6 +272,8 @@ class Coordinator:
         self.pooledDownServers = set()
         self.configHash = None
         self.serverConfigURL = configURL
+
+        self.serverInitDeferredList = defer.Deferred()
         
         # Start a periodic server list update task
         from twisted.internet import task
@@ -367,6 +405,8 @@ class Coordinator:
         """Parses the server list and changes the state accordingly."""
         
         delServers = self.servers.copy()    # Shallow copy
+        
+        initList = []
              
         for line in lines:
             line = line.rstrip('\n').strip()
@@ -386,7 +426,7 @@ class Coordinator:
                     # Initialize with LVS service specific configuration 
                     self.lvsservice.initServer(server)
                     self.servers[host] = server
-                    server.createMonitoringInstances(self, self.lvsservice)
+                    initList.append(server.initialize(self))
                     print "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight )
                 
         # Remove old servers
@@ -398,8 +438,11 @@ class Coordinator:
         # Calculate up status for previously existing, modified servers
         self.refreshModifiedServers()
         
+        # Wait for all new servers to finish initializing
+        self.serverInitDeferredList = defer.DeferredList(initList)
+
         # Assign the updated list of enabled servers to the LVSService instance
-        self.assignServers()   
+        self.serverInitDeferredList.addCallback(self.assignServers)
 
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
