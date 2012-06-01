@@ -12,7 +12,7 @@ from __future__ import absolute_import
 import os, sys, signal, socket
 from pybal import ipvs, monitor, util
 
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 from twisted.names import client, dns
 
 # TODO: make more dynamic
@@ -46,7 +46,8 @@ class Server:
             self.addressFamily = self.lvsservice.ip.find(":") and socket.AF_INET6 or socket.AF_INET
         self.ip = None
         self.port = 80
-        
+        self.ip4_addresses = set()
+        self.ip6_addresses = set()
         self.monitors = []
         
         # A few invariants that SHOULD be maintained (but currently may not be):
@@ -90,27 +91,51 @@ class Server:
         """Attempts to resolve the server's hostname to an IP address for better reliability."""
 
         timeout = [1]
+        lookups = []
+        
+        # FIXME: error handling
 
-        if self.addressFamily == socket.AF_INET:
-            query = dns.Query(self.host, dns.A)
-            lookup = client.lookupAddress(self.host, timeout)
-        elif self.addressFamily == socket.AF_INET6:
-            query = dns.Query(self.host, dns.AAAA)
-            lookup = client.lookupIPV6Address(self.host, timeout)
+        query = dns.Query(self.host, dns.A)
+        lookups.append(client.lookupAddress(self.host, timeout
+            ).addCallback(self._lookupFinished, query))
 
-        return lookup.addCallback(self._hostnameResolved, query)
+        query = dns.Query(self.host, dns.AAAA)
+        lookups.append(client.lookupIPV6Address(self.host, timeout
+            ).addCallback(self._lookupFinished, query))
+
+        return defer.DeferredList(lookups).addCallback(self._hostnameResolved)
     
-    def _hostnameResolved(self, (answers, authority, additional), query):
-        self.ip = [socket.inet_ntop(self.addressFamily, r.payload.address)
+    def _lookupFinished(self, (answers, authority, additional), query):
+        ips = [socket.inet_ntop(self.addressFamily, r.payload.address)
                    for r in answers
                    if r.name == query.name and r.type == query.type]
+
+        if query.type == dns.A:
+            self.ip4_addresses = ips
+        elif query.type == dns.AAAA:
+            self.ip6_addresses = ips
 
         # TODO: expire TTL
         #if self.ip:
         #    minTTL = min([r.ttl for r in answers
         #          if r.name == query.name and r.type == query.type])   
         
-        print "Resolved", self.host, "to addresses", " ".join(self.ip) 
+        print "Resolved", self.host, "to addresses", " ".join(ips) 
+
+    def _hostnameResolved(self):
+        # Pick *1* main ip address to use. Prefer any existing one
+        # if still available.
+        
+        ip_addresses = {
+            socket.AF_INET:
+                self.ip4_addresses,
+            socket.AF_INET6:
+                self.ip6_addresses
+            }[self.addressFamily]
+        
+        if not self.ip or self.ip not in ip_addresses:
+            self.ip = ip_addresses[0]
+            # TODO: (re)pool
 
     def destroy(self):
         self.enabled = False
