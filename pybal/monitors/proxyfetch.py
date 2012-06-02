@@ -24,7 +24,7 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
     
     from twisted.internet import defer, error
     from twisted.web import error as weberror
-    catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError )
+    catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError, error.DNSLookupError )
     
     def __init__(self, coordinator, server, configuration={}):
         """Constructor"""
@@ -72,9 +72,13 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         
         import random
         url = random.choice(self.URL)
+        try:
+            host = random.choice(self.server.ip4_addresses)
+        except (TypeError, IndexError):
+            host = self.server.host
         
         self.checkStartTime = seconds()
-        self.getProxyPage(url, method='GET', host=self.server.host, port=self.server.port,
+        self.getProxyPage(url, method='GET', host=host, port=self.server.port,
                             timeout=self.toGET, followRedirect=False
             ).addCallbacks(self._fetchSuccessful, self._fetchFailed
             ).addBoth(self._checkFinished)

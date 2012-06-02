@@ -38,15 +38,43 @@ class IPVSManager:
     def subCommandService(service):
         """
         Returns a partial command / parameter list as a single string,
-        that describes the supplied LVS service.
+        that describes the supplied LVS service, ready for passing to
+        ipvsadm.
         
         Arguments:
             service:    tuple(protocol, address, port, ...)
         """
         
-        return {'tcp': '-t', 
-                'udp': '-u'}[service[0]] + ' %s:%d' % service[1:3]
+        protocol = {'tcp': '-t', 
+                    'udp': '-u'}[service[0]]
+        
+        if service[1].find(":"):
+            # IPv6 address
+            service = ' [%s]:%d' % service[1:3]
+        else:
+            # IPv4
+            service = ' %s:%d' % service[1:3]
+        
+        return protocol + service
     subCommandService = staticmethod(subCommandService)
+    
+    def subCommandServer(server):
+        """
+        Returns a partial command / parameter list as a single string,
+        that describes the supplied server, ready for passing to ipvsadm.
+        
+        Arguments:
+            server:    PyBal server object
+        """
+        
+        if server.ip:
+            if server.ip.find(":"):
+                return '-r [%s]' % server.ip
+            else:
+                return '-r %s' % server.ip
+        else:
+            return '-r %s' % server.host
+    subCommandServer = staticmethod(subCommandServer)
     
     def commandClearServiceTable():
         """Returns an ipvsadm command to clear the current service table."""
@@ -86,7 +114,7 @@ class IPVSManager:
             server:    Server
         """
                 
-        return '-d ' + cls.subCommandService(service) + ' -r ' + (server.ip or server.host)
+        return " ".join(['-d', cls.subCommandService(service), cls.subCommandServer(server)])
     commandRemoveServer = classmethod(commandRemoveServer)
     
     def commandAddServer(cls, service, server):
@@ -98,7 +126,7 @@ class IPVSManager:
             server:    Server
         """        
         
-        cmd = '-a ' + cls.subCommandService(service) + ' -r ' + (server.ip or server.host)
+        cmd = " ".join(['-a', cls.subCommandService(service), cls.subCommandServer(server)])
         
         # Include weight if specified
         if server.weight:
@@ -116,7 +144,7 @@ class IPVSManager:
             server:    Server
         """        
         
-        cmd = '-e ' + cls.subCommandService(service) + ' -r ' + (server.ip or server.host)
+        cmd = " ".join(['-e', cls.subCommandService(service), cls.subCommandServer(server)])
         
         # Include weight if specified
         if server.weight:
