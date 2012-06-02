@@ -117,12 +117,13 @@ class Server:
         #if self.ip:
         #    minTTL = min([r.ttl for r in answers
         #          if r.name == query.name and r.type == query.type])   
-        
-        print "Resolved", self.host, "to addresses", " ".join(ips) 
 
     def _hostnameResolved(self):
         # Pick *1* main ip address to use. Prefer any existing one
         # if still available.
+
+        
+        print "Resolved", self.host, "to addresses", " ".join(self.ip4_addresses + self.ip6_addresses) 
         
         ip_addresses = {
             socket.AF_INET:
