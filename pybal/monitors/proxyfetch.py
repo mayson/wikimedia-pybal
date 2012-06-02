@@ -24,7 +24,7 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
     
     from twisted.internet import defer, error
     from twisted.web import error as weberror
-    catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError )
+    catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError, error.DNSLookupError )
     
     def __init__(self, coordinator, server, configuration={}):
         """Constructor"""
