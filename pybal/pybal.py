@@ -124,7 +124,8 @@ class Server:
         # Pick *1* main ip address to use. Prefer any existing one
         # if still available.
         
-        print "Resolved", self.host, "to addresses", " ".join(self.ip4_addresses + self.ip6_addresses) 
+        print "Resolved", self.host, "to addresses", " ".join(
+            list(self.ip4_addresses) + list(self.ip6_addresses)) 
         
         ip_addresses = {
             socket.AF_INET:
@@ -154,7 +155,7 @@ class Server:
 
         d = self.resolveHostname()
         
-        return d.addCallbacks(self._ready, self._initFailed, callbackArgs=coordinator)
+        return d.addCallbacks(self._ready, self._initFailed, callbackArgs=[coordinator])
     
     def _ready(self, result, coordinator):
         """
@@ -174,6 +175,8 @@ class Server:
         """
         Called when initialization failed
         """
+        
+        print "Initialization failed for server", self.host
         
         assert self.ready == False
         self.maintainState()
@@ -289,7 +292,7 @@ class Coordinator:
         Takes a new set of servers (as a host->Server dict) and
         hands them over to LVSService
         """
-        
+
         # Hand over enabled servers to LVSService
         self.lvsservice.assignServers(
             set([server for server in self.servers.itervalues() if server.pooled]))
@@ -444,10 +447,15 @@ class Coordinator:
         self.refreshModifiedServers()
         
         # Wait for all new servers to finish initializing
-        self.serverInitDeferredList = defer.DeferredList(initList)
+        self.serverInitDeferredList = defer.DeferredList(initList).addCallback(self._serverInitDone)
+    
+    def _serverInitDone(self, result):
+        """Called when all (new) servers have finished initializing"""
 
+        print "Initialization complete"
+        
         # Assign the updated list of enabled servers to the LVSService instance
-        self.serverInitDeferredList.addCallback(self.assignServers)
+        self.assignServers()
 
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
