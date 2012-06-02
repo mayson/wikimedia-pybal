@@ -95,16 +95,16 @@ class Server:
         
         query = dns.Query(self.host, dns.A)
         lookups.append(client.lookupAddress(self.host, timeout
-            ).addCallback(self._lookupFinished, query))
+            ).addCallback(self._lookupFinished, socket.AF_INET, query))
 
         query = dns.Query(self.host, dns.AAAA)
         lookups.append(client.lookupIPV6Address(self.host, timeout
-            ).addCallback(self._lookupFinished, query))
+            ).addCallback(self._lookupFinished, socket.AF_INET6, query))
 
         return defer.DeferredList(lookups).addBoth(self._hostnameResolved)
     
-    def _lookupFinished(self, (answers, authority, additional), query):
-        ips = set([socket.inet_ntop(self.addressFamily, r.payload.address)
+    def _lookupFinished(self, (answers, authority, additional), addressFamily, query):
+        ips = set([socket.inet_ntop(addressFamily, r.payload.address)
                    for r in answers
                    if r.name == query.name and r.type == query.type])
 
