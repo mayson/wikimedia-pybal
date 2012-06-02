@@ -121,7 +121,6 @@ class Server:
     def _hostnameResolved(self):
         # Pick *1* main ip address to use. Prefer any existing one
         # if still available.
-
         
         print "Resolved", self.host, "to addresses", " ".join(self.ip4_addresses + self.ip6_addresses) 
         
@@ -326,7 +325,7 @@ class Coordinator:
         if not server.up and server.calcStatus():
             print "Server %s (%s) is up" % (server.host, server.textStatus())
             server.up = True
-            if server.enabled: self.repool(server)    
+            if server.enabled and server.ready: self.repool(server)    
 
     def depool(self, server):
         """Depools a single Server, if possible"""
@@ -346,7 +345,7 @@ class Coordinator:
         not be depooled then because of too many hosts down.
         """
         
-        assert server.enabled
+        assert server.enabled and server.ready
         
         if not server.pooled:
             self.lvsservice.addServer(server)
