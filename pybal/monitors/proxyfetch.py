@@ -73,7 +73,7 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         import random
         url = random.choice(self.URL)
         try:
-            host = random.choice(self.server.ip)
+            host = random.choice(self.server.ip4_addresses)
         except (TypeError, IndexError):
             host = self.server.host
         

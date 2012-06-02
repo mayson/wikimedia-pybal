@@ -103,7 +103,7 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         """Starts a TCP connection attempt"""
         
         try:
-            host = random.choice(self.server.ip)
+            host = random.choice(self.server.ip4_addresses)
         except (TypeError, IndexError):
             host = self.server.host
         
