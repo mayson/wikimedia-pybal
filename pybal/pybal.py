@@ -116,9 +116,11 @@ class Server:
         # TODO: expire TTL
         #if self.ip:
         #    minTTL = min([r.ttl for r in answers
-        #          if r.name == query.name and r.type == query.type])   
+        #          if r.name == query.name and r.type == query.type])
+        
+        return ips   
 
-    def _hostnameResolved(self):
+    def _hostnameResolved(self, result):
         # Pick *1* main ip address to use. Prefer any existing one
         # if still available.
         
@@ -137,6 +139,8 @@ class Server:
                 # TODO: (re)pool
         except IndexError:
             return failure.Failure() # TODO: be more specific?
+        else:
+            return True
 
     def destroy(self):
         self.enabled = False
