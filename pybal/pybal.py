@@ -287,6 +287,9 @@ class Coordinator:
         from twisted.internet import task
         task.LoopingCall(self.loadServers).start(self.intvLoadServers)
     
+    def __str__(self):
+        return "[%s]" % self.lvsservice.name
+    
     def assignServers(self):
         """
         Takes a new set of servers (as a host->Server dict) and
@@ -316,7 +319,7 @@ class Coordinator:
         
         server = monitor.server
         
-        print "Monitoring instance %s reports servers %s (%s) down:" % (monitor.name(), server.host, server.textStatus()), (reason or '(reason unknown)')
+        print self, "Monitoring instance %s reports server %s (%s) down:" % (monitor.name(), server.host, server.textStatus()), (reason or '(reason unknown)')
         
         if server.up:
             server.up = False
@@ -331,7 +334,7 @@ class Coordinator:
         server = monitor.server
     
         if not server.up and server.calcStatus():
-            print "Server %s (%s) is up" % (server.host, server.textStatus())
+            print self, "Server %s (%s) is up" % (server.host, server.textStatus())
             server.up = True
             if server.enabled and server.ready: self.repool(server)    
 
@@ -345,7 +348,7 @@ class Coordinator:
             self.pooledDownServers.discard(server)
         else:
             self.pooledDownServers.add(server)
-            print 'Could not depool server', server.host, 'because of too many down!'
+            print self, 'Could not depool server', server.host, 'because of too many down!'
     
     def repool(self, server):
         """
@@ -358,7 +361,7 @@ class Coordinator:
         if not server.pooled:
             self.lvsservice.addServer(server)
         else:
-            print "Leaving previously pooled but down server", server.host, "pooled"
+            print self, "Leaving previously pooled but down server", server.host, "pooled"
         
         # If it had been pooled in down state before, remove it from the list
         self.pooledDownServers.discard(server)
@@ -404,7 +407,7 @@ class Coordinator:
         newHash = hashlib.md5()
         newHash.update(configuration)
         if not self.configHash or self.configHash.digest() != newHash.digest():
-            print 'New configuration received'
+            print self, 'New configuration received'
             
             self.configHash = newHash        
             self._parseConfig(configuration.splitlines())
@@ -427,7 +430,7 @@ class Coordinator:
                     # Existing server. merge
                     server = delServers.pop(host)
                     server.merge(serverdict)            
-                    print "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight)
+                    print self, "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight)
                 else:
                     # New server
                     server = Server.buildServer(serverdict, self.lvsservice)
@@ -435,11 +438,11 @@ class Coordinator:
                     self.lvsservice.initServer(server)
                     self.servers[host] = server
                     initList.append(server.initialize(self))
-                    print "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight )
+                    print self, "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight )
                 
         # Remove old servers
         for host, server in delServers.iteritems():
-            print "Removing server %s (no longer found in new configuration)" % host
+            print self, "Removing server %s (no longer found in new configuration)" % host
             server.destroy()
             del self.servers[host]
         
@@ -452,7 +455,7 @@ class Coordinator:
     def _serverInitDone(self, result):
         """Called when all (new) servers have finished initializing"""
 
-        print "Initialization complete"
+        print self, "Initialization complete"
         
         # Assign the updated list of enabled servers to the LVSService instance
         self.assignServers()
