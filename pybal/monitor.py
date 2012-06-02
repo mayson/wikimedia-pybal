@@ -68,7 +68,7 @@ class MonitoringProtocol(object):
         Common method for reporting/logging check results
         """
         
-        print "[%s] %s (%s): %s" % (self.__name__, self.server.host, self.server.textStatus(), text)
+        print "[%s %s] %s (%s): %s" % (self.server.lvsservice.name, self.__name__, self.server.host, self.server.textStatus(), text)
     
     def _getConfigBool(self, optionname, default=None):
         return self.configuration.getboolean('%s.%s' % (self.__name__.lower(), optionname), default)
