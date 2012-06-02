@@ -152,12 +152,11 @@ class Server:
         when ready for use (self.ready == True)
         """
 
-        self.createMonitoringInstances(coordinator)
         d = self.resolveHostname()
         
-        return d.addCallbacks(self._ready, self._initFailed)
+        return d.addCallbacks(self._ready, self._initFailed, callbackArgs=coordinator)
     
-    def _ready(self, result):
+    def _ready(self, result, coordinator):
         """
         Called when initialization has finished.
         """
@@ -166,6 +165,8 @@ class Server:
         self.up = self.DEF_STATE
         self.pooled = self.DEF_STATE
         self.maintainState()
+
+        self.createMonitoringInstances(coordinator)
         
         return True
 
