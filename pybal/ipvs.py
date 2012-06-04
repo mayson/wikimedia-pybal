@@ -68,10 +68,7 @@ class IPVSManager:
         """
         
         if server.ip:
-            if server.ip.find(":"):
-                return '-r [%s]' % server.ip
-            else:
-                return '-r %s' % server.ip
+            return '-r %s' % server.ip
         else:
             return '-r %s' % server.host
     subCommandServer = staticmethod(subCommandServer)
