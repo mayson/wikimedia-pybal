@@ -387,7 +387,9 @@ class Coordinator:
         if configURL.startswith('http://'):
             # Retrieve file over HTTP
             from twisted.web import client
-            client.getPage(configURL).addCallback(self._configReceived)
+            client.getPage(configURL
+                ).addCallback(self._configReceived
+                ).addErrback(self._configLoadError, configURL)
         elif configURL.startswith('file://'):
             # Read the text file
             try:
@@ -396,7 +398,14 @@ class Coordinator:
                 print e
         else:
             raise ValueError, "Invalid configuration URL"
-    
+
+    def _configLoadError(self, fail, configURL):
+        """
+        Called when client.getPage could not load the configuration file.
+        """
+        
+        print self, "Could not load configuration URL %s:" % configURL, fail.getErrorMessage()
+
     def _configReceived(self, configuration):
         """
         Compares the MD5 hash of the new configuration vs. the old one,
