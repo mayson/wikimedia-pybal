@@ -1,3 +1,13 @@
+pybal (1.00) precise; urgency=low
+
+  [ Faidon Liambotis ]
+  * Add b-d on python-all and use dh_python2
+
+  [ Mark Bergsma ]
+  * Add basic IPv6 support to PyBal
+
+ -- Mark Bergsma <mark@wikimedia.org>  Mon, 04 Jun 2012 14:29:43 +0000
+
 pybal (0.1+r20120524-1) lucid; urgency=low
 
   * Refactor Debian package & init script.
