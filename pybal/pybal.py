@@ -44,7 +44,7 @@ class Server:
         if addressFamily:
             self.addressFamily = addressFamily
         else: 
-            self.addressFamily = self.lvsservice.ip.find(":") and socket.AF_INET6 or socket.AF_INET
+            self.addressFamily = (':' in self.lvsservice.ip) and socket.AF_INET6 or socket.AF_INET
         self.ip = None
         self.port = 80
         self.ip4_addresses = set()
