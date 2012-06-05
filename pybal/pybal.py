@@ -598,6 +598,7 @@ def createDaemon():
             # Ensure that the daemon doesn't keep any directory in use.  Failure
             # to do this could make a filesystem unmountable.
             os.chdir( "/" )
+            os.umask( 022 )
         else:
             os._exit( 0 )      # Exit parent (the first child) of the second child.
     else:
