@@ -1295,7 +1295,7 @@ class BGP(protocol.Protocol):
         # Parse the header
         try:
             marker, length, type = struct.unpack('!16sHB', buf[:HDR_LEN])
-        except Exception:
+        except struct.error:
             self.fsm.headerError(ERR_MSG_HDR_CONN_NOT_SYNC)
         
         # Check the length of the message
@@ -1333,7 +1333,7 @@ class BGP(protocol.Protocol):
                             
         try:
             peerVersion, peerASN, peerHoldTime, peerBgpId, paramLen = struct.unpack('!BHHIB', message[:10])
-        except Exception:
+        except struct.error:
             raise BadMessageLength(self)
         
         # Check whether these values are acceptable
@@ -1390,7 +1390,7 @@ class BGP(protocol.Protocol):
         
         try:
             error, suberror = struct.unpack('!BB', message[:2])
-        except Exception:
+        except struct.error:
             raise BadMessageLength(self)
         
         return error, suberror, message[2:]
