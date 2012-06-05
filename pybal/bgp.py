@@ -1696,19 +1696,18 @@ class BGPPeering(BGPFactory):
             self.fsm.state = ST_CONNECT
     
     def manualStop(self):
-        """BGP ManualStop event (event 2) Returns a DeferredList that will fire once the connection(s) have closed"""
+        """BGP ManualStop event (event 2) Returns a Deferred that will fire once the connection(s) have closed"""
         
-        deferredList = []
+        # This code is currently synchronous, so no need to actually wait
+        
         for c in self.inConnections + self.outConnections:
             # Catch a possible NotificationSent exception
             try:
-                c.deferred = defer.Deferred()
-                deferredList.append(c.deferred)
                 c.fsm.manualStop()
             except NotificationSent, e:
                 pass
         
-        return defer.DeferredList(deferredList)
+        return defer.succeed(True)
     
     def automaticStart(self, idleHold=False):
         """BGP AutomaticStart event (event 3)"""
