@@ -67,10 +67,7 @@ class IPVSManager:
             server:    PyBal server object
         """
         
-        if server.ip:
-            return '-r %s' % server.ip
-        else:
-            return '-r %s' % server.host
+        return '-r %s' % (server.ip or server.host)
     subCommandServer = staticmethod(subCommandServer)
     
     def commandClearServiceTable():
