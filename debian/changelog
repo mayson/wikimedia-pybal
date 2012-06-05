@@ -1,3 +1,15 @@
+pybal (1.01) precise; urgency=low
+
+  * Fix erroneous use of str.find()
+  * Catch and handle server list load errors
+  * Set umask 022 for the daemon
+  * Simplify subCommandServer
+  * Make sure we don't pass any IPv6 service IP addresses to BGP at the moment
+  * Replace some too generic exception handlers by more specific exceptions in bgp.py
+  * Fix bug where BGPPeering.manualStop() would not fire callbacks
+
+ -- Mark Bergsma <mark@wikimedia.org>  Tue, 05 Jun 2012 08:51:13 +0000
+
 pybal (1.00) precise; urgency=low
 
   [ Faidon Liambotis ]
