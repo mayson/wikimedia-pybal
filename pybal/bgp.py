@@ -92,6 +92,14 @@ ATTR_TYPE_MP_UNREACH_NLRI = 15
 
 ATTR_TYPE_INT_LAST_UPDATE = 256 + 1
 
+AFI_INET = 1
+AFI_INET6 = 2
+SUPPORTED_AFI = [AFI_INET, AFI_INET6]
+
+SAFI_UNICAST = 1
+SAFI_MULTICAST = 2
+SUPPORTED_SAFI = [SAFI_UNICAST, SAFI_MULTICAST]
+
 # Exception classes
 
 class BGPException(Exception):
@@ -153,7 +161,7 @@ class IBGPPeering(Interface):
 class IPPrefix(object):
     """Class that represents an IP prefix"""
     
-    def __init__(self, ipprefix):
+    def __init__(self, ipprefix, addressFamily=AFI_INET):
         self.prefix = None # packed ip string
         
         if isinstance(ipprefix, IPPrefix):
@@ -583,6 +591,65 @@ class CommunityAttribute(Attribute):
     
     def __str__(self):
         return str(["%d:%d" % (c / 2**16, c % 2**16) for c in self.value])
+
+# RFC4760 attributes
+
+class MPReachNLRIAttribute(Attribute):
+    name = 'MP Reach NLRI'
+    typeCode = ATTR_TYPE_MP_REACH_NLRI
+    
+    # Tuple encoding of self.value:
+    # (AFI, SAFI, NH, [NLRI])
+    
+    def __init__(self, value=None):
+        if type(value) is tuple:
+            super(MPReachNLRIAttribute, self).__init__(value)
+            self.fromTuple(value)
+        else:
+            super(MPReachNLRIAttribute, self).__init__(None)
+            self.optional = True
+            self.transitive = False
+            self.value = value or (AFI_INET, SAFI_UNICAST, "", [])
+    
+    def fromTuple(self, attrTuple):
+        value = attrTuple[2]
+
+        if not self.optional or self.transitive:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+
+        try:
+            afi, safi, nhlen = struct.unpack('!HBB', value)
+        except struct.error:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+
+        if afi not in SUPPORTED_AFI or safi not in SUPPORTED_SAFI:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        
+        try:
+            pnh = struct.unpack('!%ds' % nhlen, value[4:4+nhlen])
+        except struct.error:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        
+        if afi == AFI_INET:
+            nexthop = IPv4IP(pnh)
+        elif afi == AFI_INET6:
+            nexthop = IPv6IP(pnh)
+        
+        # Process NLRI
+        try:
+            nlri = BGP.parseEncodedPrefixList(value[5+nhlen:], afi)
+        except BGPError:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        
+        self.value = (afi, safi, nexthop, nlri)
+    
+    def encode(self):
+        afi, safi, nexthop, nlri = self.value
+        
+        # Encode the NLRI
+        encoded_nlri = "".join([struct.pack('!B', len(prefix)) + prefix.packed() for prefix in nlri])
+
+        return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop, 0) + encoded_nlri
 
 class LastUpdateIntAttribute(Attribute):
     name = 'Last Update'
@@ -1475,14 +1542,15 @@ class BGP(protocol.Protocol):
         return (self.transport.getPeer().port == PORT)
 
     @staticmethod
-    def parseEncodedPrefixList(data):
+    def parseEncodedPrefixList(data, addressFamily=AFI_INET):
         """Parses an RFC4271 encoded blob of BGP prefixes into a list"""
         
         prefixes = []
         postfix = data
         while len(postfix) > 0:
             prefixLen = ord(postfix[0])
-            if prefixLen > 32:
+            if (addressFamily == AFI_INET and prefixLen > 32
+                ) or (addressFamily == AFI_INET6 and prefixLen > 128):
                 raise BGPError(ERR_MSG_UPDATE, ERR_MSG_UPDATE_INVALID_NETWORK_FIELD)
             
             octetLen, remainder = prefixLen / 8, prefixLen % 8
@@ -1496,7 +1564,7 @@ class BGP(protocol.Protocol):
             if remainder > 0:
                 prefixData[-1] = prefixData[-1] & (255 << (8-remainder))
                 
-            prefixes.append(IPPrefix((prefixData, prefixLen)))
+            prefixes.append(IPPrefix((prefixData, prefixLen, addressFamily)))
             
             # Next prefix
             postfix = postfix[octetLen+1:]
