@@ -700,11 +700,8 @@ class MPReachNLRIAttribute(Attribute):
     
     def encode(self):
         afi, safi, nexthop, nlri = self.value
-        
-        # Encode the NLRI
-        encoded_nlri = "".join([struct.pack('!B', len(prefix)) + prefix.packed() for prefix in nlri])
 
-        return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop, 0) + encoded_nlri
+        return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop, 0) + BGP.encodePrefixes(nlri)
 
 class MPUnreachNLRIAttribute(Attribute):
     name = 'MP Unreach NLRI'
@@ -747,11 +744,8 @@ class MPUnreachNLRIAttribute(Attribute):
     
     def encode(self):
         afi, safi, nlri = self.value
-        
-        # Encode the NLRI
-        encoded_nlri = "".join([struct.pack('!B', len(prefix)) + prefix.packed() for prefix in nlri])
 
-        return struct.pack('!HB', afi, safi) + encoded_nlri
+        return struct.pack('!HB', afi, safi) + BGP.encodePrefixes(nlri)
 
 class LastUpdateIntAttribute(Attribute):
     name = 'Last Update'
