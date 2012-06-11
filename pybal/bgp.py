@@ -785,7 +785,7 @@ Attribute.typeToClass = {
 class BaseAttributeSet():
     """Base class for FrozenAttributeSet and AttributeSet"""
 
-    def _init(self, attributes):
+    def _init(self, attributes, checkMissing=True):
         """
         Expects a sequence of either unparsed attribute tuples, or parsed
         Attribute inheritors.
@@ -802,12 +802,13 @@ class BaseAttributeSet():
             else:
                 raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
         
-        # Check whether all mandatory well-known attributes are present
-        for attr, typeCode in [(self.origin, ATTR_TYPE_ORIGIN),
-                               (self.asPath, ATTR_TYPE_AS_PATH),
-                               (self.nextHop, ATTR_TYPE_NEXT_HOP)]:
-            if attr is None:
-                raise AttributeException(ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR, (0, typeCode, None))
+        if checkMissing:
+            # Check whether all mandatory well-known attributes are present
+            for attr, typeCode in [(self.origin, ATTR_TYPE_ORIGIN),
+                                   (self.asPath, ATTR_TYPE_AS_PATH),
+                                   (self.nextHop, ATTR_TYPE_NEXT_HOP)]:
+                if attr is None:
+                    raise AttributeException(ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR, (0, typeCode, None))
 
         return workSet
 
@@ -831,14 +832,14 @@ class BaseAttributeSet():
 class FrozenAttributeSet(BaseAttributeSet, frozenset):
     """Class that contains a single set of attributes attached to a list of NLRIs"""
 
-    def __init__(self, attributes):
-        super(FrozenAttributeSet, self).__init__(self._init(attributes))
+    def __init__(self, attributes, checkMissing=True):
+        super(FrozenAttributeSet, self).__init__(self._init(attributes, checkMissing))
 
 class AttributeSet(BaseAttributeSet, set):
     """Mutable variant of FrozenAttributeSet"""
 
-    def __init__(self, attributes):
-        super(AttributeSet, self).__init__(self._init(attributes))
+    def __init__(self, attributes, checkMissing=True):
+        super(AttributeSet, self).__init__(self._init(attributes, checkMissing))
 
     def add(self, attr):
         self._add(attr, self)
@@ -1607,18 +1608,14 @@ class BGP(protocol.Protocol):
         """Called when a BGP Update message was received."""
         
         try:
-            attrSet = AttributeSet(attributes)
+            attrSet = AttributeSet(attributes, checkMissing=(len(nlri)>0))
         except AttributeException, e:
-            if (e.suberror in (ERR_MSG_UPDATE_UNRECOGNIZED_WELLKNOWN_ATTR,
-                              ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR)
-                and type(e.data) is not tuple):
-                # e.data is a typecode
-                self.fsm.updateError(e.suberror, chr(e.data))
+            if type(e.data) is tuple:
+                self.fsm.updateError(e.suberror, (e.data[2] and self.encodeAttribute(e.data) or chr(e.data[1])))
             else:
-                # e.data is an attribute tuple
-                self.fsm.updateError(e.suberror, self.encodeAttribute(e.data))
-        else:
-            self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
+                self.fsm.updateError(e.suberror)
+        
+        self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
 
     def keepAliveReceived(self):
         """Called when a BGP KeepAlive message was received.
