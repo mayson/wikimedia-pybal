@@ -3,6 +3,10 @@
 
 """
 A (partial) implementation of the BGP 4 protocol (RFC4271).
+
+Supported features:
+
+- RFC 4760 (Multi-protocol Extensions for BGP-4)
 """
 
 # System imports
