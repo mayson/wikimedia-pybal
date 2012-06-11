@@ -277,7 +277,7 @@ class IPv4IP(IPPrefix):
     """Class that represents a single non-prefix IPv4 IP."""
     
     def __init__(self, ip):
-        if type(ip) is str and len(ip) > self._packedMaxLen():
+        if type(ip) is str and len(ip) > 4:
             super(IPv4IP, self).__init__(ip + '/32', AFI_INET)
         else:
             super(IPv4IP, self).__init__((ip, 32), AFI_INET)
@@ -289,7 +289,7 @@ class IPv6IP(IPPrefix):
     """Class that represents a single non-prefix IPv6 IP."""
     
     def __init__(self, ip):
-        if type(ip) is str and len(ip) > self._packedMaxLen():
+        if type(ip) is str and len(ip) > 16:
             super(IPv6IP, self).__init__(ip + '/128', AFI_INET6)
         else:
             super(IPv6IP, self).__init__((ip, 128), AFI_INET6)
