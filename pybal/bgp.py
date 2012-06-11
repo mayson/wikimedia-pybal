@@ -171,6 +171,7 @@ class IBGPPeering(Interface):
         be initiated.
         """
 
+# TODO: Replace by some better third party classes or rewrite
 class IPPrefix(object):
     """Class that represents an IP prefix"""
     
@@ -296,11 +297,14 @@ class IPv4IP(IPPrefix):
 class IPv6IP(IPPrefix):
     """Class that represents a single non-prefix IPv6 IP."""
     
-    def __init__(self, ip):
-        if type(ip) is str and len(ip) > 16:
+    def __init__(self, ip=None, packed=None):
+        if not ip and not packed:
+            raise ValueError()
+        
+        if packed:
+            super(IPv6IP, self).__init__((packed, 128), AFI_INET6)
+        else:    
             super(IPv6IP, self).__init__(ip + '/128', AFI_INET6)
-        else:
-            super(IPv6IP, self).__init__((ip, 128), AFI_INET6)
 
     def __str__(self):
         sep = (self.addressfamily == AFI_INET6 and ':' or '.')
@@ -673,23 +677,23 @@ class MPReachNLRIAttribute(Attribute):
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
 
         try:
-            afi, safi, nhlen = struct.unpack('!HBB', value)
+            afi, safi, nhlen = struct.unpack('!HBB', value[:4])
         except struct.error:
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
 
         if afi not in SUPPORTED_AFI or safi not in SUPPORTED_SAFI:
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
-        
+
         try:
-            pnh = struct.unpack('!%ds' % nhlen, value[4:4+nhlen])
+            pnh = struct.unpack('!%ds' % nhlen, value[4:4+nhlen])[0]
         except struct.error:
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
         
         if afi == AFI_INET:
-            nexthop = IPv4IP(pnh)
+            nexthop = IPv4IP(packed=pnh)
         elif afi == AFI_INET6:
-            nexthop = IPv6IP(pnh)
-        
+            nexthop = IPv6IP(packed=pnh)
+
         # Process NLRI
         try:
             nlri = BGP.parseEncodedPrefixList(value[5+nhlen:], afi)
@@ -796,25 +800,25 @@ class BaseAttributeSet():
             elif isinstance(attr, Attribute):
                 self._add(attr, workSet)
             else:
-                raise AttributeError(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
+                raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
         
         # Check whether all mandatory well-known attributes are present
         for attr, typeCode in [(self.origin, ATTR_TYPE_ORIGIN),
                                (self.asPath, ATTR_TYPE_AS_PATH),
                                (self.nextHop, ATTR_TYPE_NEXT_HOP)]:
             if attr is None:
-                raise AttributeError(ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR, (0, typeCode, None))
+                raise AttributeException(ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR, (0, typeCode, None))
 
         return workSet
 
     def _add(self, attr, workSet):
-        """Adds attribute attr to the set, raises AttributeError if already present"""
+        """Adds attribute attr to the set, raises AttributeException if already present"""
         
         try:
             workSet.add(attr)
         except KeyError:
             # Attribute was already present
-            raise AttributeError(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
+            raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
         else:
             # Add direct references for the mandatory well-known attributes
             if type(attr) is OriginAttribute:
@@ -1602,21 +1606,19 @@ class BGP(protocol.Protocol):
     def updateReceived(self, withdrawnPrefixes, attributes, nlri):
         """Called when a BGP Update message was received."""
         
-        if len(nlri) > 0:
-            try:
-                attrSet = AttributeSet(attributes)
-            except AttributeException, e:
-                if e.suberror in (ERR_MSG_UPDATE_UNRECOGNIZED_WELLKNOWN_ATTR,
-                                  ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR):
-                    # e.data is a typecode
-                    self.fsm.updateError(e.suberror, chr(e.data))
-                else:
-                    # e.data is an attribute tuple
-                    self.fsm.updateError(e.suberror, self.encodeAttribute(e.data))
+        try:
+            attrSet = AttributeSet(attributes)
+        except AttributeException, e:
+            if (e.suberror in (ERR_MSG_UPDATE_UNRECOGNIZED_WELLKNOWN_ATTR,
+                              ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR)
+                and type(e.data) is not tuple):
+                # e.data is a typecode
+                self.fsm.updateError(e.suberror, chr(e.data))
+            else:
+                # e.data is an attribute tuple
+                self.fsm.updateError(e.suberror, self.encodeAttribute(e.data))
         else:
-            attrSet = set()
-            
-        self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
+            self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
 
     def keepAliveReceived(self):
         """Called when a BGP KeepAlive message was received.
