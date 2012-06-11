@@ -6,6 +6,7 @@ A (partial) implementation of the BGP 4 protocol (RFC4271).
 
 Supported features:
 
+- RFC 3392 (Capabilities Advertisement with BGP-4) [rudimentary]
 - RFC 4760 (Multi-protocol Extensions for BGP-4)
 """
 
@@ -95,6 +96,14 @@ ATTR_TYPE_MP_REACH_NLRI = 14
 ATTR_TYPE_MP_UNREACH_NLRI = 15
 
 ATTR_TYPE_INT_LAST_UPDATE = 256 + 1
+
+# BGP Open optional parameter codes
+OPEN_PARAM_CAPABILITIES = 2
+
+# BGP Capability codes
+CAP_MP_EXT = 1
+CAP_ROUTE_REFRESH = 2
+CAP_ORF = 3
 
 AFI_INET = 1
 AFI_INET6 = 2
@@ -348,7 +357,7 @@ class Attribute(object):
         return repr(self.tuple())
     
     def __str__(self):
-        return str(self.value)
+        return self.__repr__()
     
     def flagsStr(self):
         """Returns a string with characters symbolizing the flags
@@ -1320,7 +1329,7 @@ class BGP(protocol.Protocol):
         # Set the local BGP id from the local IP address if it's not set
         if self.factory.bgpId is None:
             self.factory.bgpId = IPv4IP(self.transport.getHost().host).ipToInt()  # FIXME: IPv6
-        
+
         try:
             self.fsm.connectionMade()
         except NotificationSent, e:
@@ -1406,15 +1415,15 @@ class BGP(protocol.Protocol):
     
     def constructOpen(self):
         """Constructs a BGP Open message"""
+
+        # Construct optional parameters
+        optParams = self.constructOpenOptionalParameters(self.constructCapabilities(self._capabilities()))
         
-        msg = struct.pack('!BHHIB',
+        msg = struct.pack('!BHHI',
                           VERSION,
                           self.factory.myASN,
                           self.fsm.holdTime,
-                          self.factory.bgpId,
-                          0)
-        
-        # TODO: support optional parameters
+                          self.factory.bgpId) + optParams
         
         return self.constructHeader(msg, MSG_OPEN)
 
@@ -1443,6 +1452,21 @@ class BGP(protocol.Protocol):
         
         msg = struct.pack('!BB', error, suberror) + data
         return self.constructHeader(msg, MSG_NOTIFICATION)
+    
+    def constructOpenOptionalParameters(self, parameters):
+        """Constructs the OptionalParameters fields of a BGP Open message"""
+        
+        params = "".join(parameters)
+        return struct.pack('!B', len(params)) + params
+    
+    def constructCapabilities(self, capabilities):
+        """Constructs a Capabilities optional parameter of a BGP Open message"""
+        
+        caps = "".join([struct.pack('!BB', capCode, len(capValue)) + capValue
+                   for capCode, capValue
+                   in capabilities])
+        
+        return struct.pack('!BB', OPEN_PARAM_CAPABILITIES, len(caps)) + caps
 
     def parseBuffer(self):
         """Parse received data in receiveBuffer"""
@@ -1639,6 +1663,16 @@ class BGP(protocol.Protocol):
         and False otherwise."""
         
         return (self.transport.getPeer().port == PORT)
+    
+    
+    def _capabilities(self):
+        # Determine capabilities
+        capabilities = []
+        for afi, safis in self.factory.addressFamilies.iteritems():
+            for safi in safis:
+                capabilities.append((CAP_MP_EXT, struct.pack('!HBB', afi, 0, safi)))
+        
+        return capabilities
 
     @staticmethod
     def parseEncodedPrefixList(data, addressFamily=AFI_INET):
@@ -1795,6 +1829,7 @@ class BGPPeering(BGPFactory):
         self.peerAddr = peerAddr
         self.peerId = None
         self.fsm = BGPFactory.FSM(self)
+        self.addressFamilies = { AFI_INET: [SAFI_UNICAST] }
         self.inConnections = []
         self.outConnections = []
         self.estabProtocol = None    # reference to the BGPProtocol instance in ESTAB state
@@ -2074,6 +2109,20 @@ class BGPPeering(BGPFactory):
         """Called when the BGP session is established, and announcements can be sent."""
         pass
 
+    def setEnabledAddressFamilies(self, addressFamilies):
+        """
+        Expects a dict with address families to be enabled,
+        containing iterables with Sub-AFIs
+        """
+        
+        for afi, safis in addressFamilies.iteritems():
+            if afi not in SUPPORTED_AFI:
+                raise ValueError()
+            for safi in safis:
+                if safi not in SUPPORTED_SAFI:
+                    raise ValueError()
+        
+        self.addressFamilies = addressFamilies
 
 class NaiveBGPPeering(BGPPeering):
     """
