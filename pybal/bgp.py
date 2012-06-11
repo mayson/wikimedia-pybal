@@ -609,7 +609,7 @@ class MPReachNLRIAttribute(Attribute):
             super(MPReachNLRIAttribute, self).__init__(None)
             self.optional = True
             self.transitive = False
-            self.value = value or (AFI_INET, SAFI_UNICAST, "", [])
+            self.value = value or (AFI_INET, SAFI_UNICAST, IPv4IP(), [])
     
     def fromTuple(self, attrTuple):
         value = attrTuple[2]
@@ -651,6 +651,53 @@ class MPReachNLRIAttribute(Attribute):
 
         return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop, 0) + encoded_nlri
 
+class MPUnreachNLRIAttribute(Attribute):
+    name = 'MP Unreach NLRI'
+    typeCode = ATTR_TYPE_MP_UNREACH_NLRI
+    
+    # Tuple encoding of self.value:
+    # (AFI, SAFI, [NLRI])
+    
+    def __init__(self, value=None):
+        if type(value) is tuple:
+            super(MPUnreachNLRIAttribute, self).__init__(value)
+            self.fromTuple(value)
+        else:
+            super(MPUnreachNLRIAttribute, self).__init__(None)
+            self.optional = True
+            self.transitive = False
+            self.value = value or (AFI_INET, SAFI_UNICAST, [])
+    
+    def fromTuple(self, attrTuple):
+        value = attrTuple[2]
+
+        if not self.optional or self.transitive:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+
+        try:
+            afi, safi = struct.unpack('!HB', value)
+        except struct.error:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+
+        if afi not in SUPPORTED_AFI or safi not in SUPPORTED_SAFI:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+
+        # Process NLRI
+        try:
+            nlri = BGP.parseEncodedPrefixList(value[3:], afi)
+        except BGPError:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        
+        self.value = (afi, safi, nlri)
+    
+    def encode(self):
+        afi, safi, nlri = self.value
+        
+        # Encode the NLRI
+        encoded_nlri = "".join([struct.pack('!B', len(prefix)) + prefix.packed() for prefix in nlri])
+
+        return struct.pack('!HB', afi, safi) + encoded_nlri
+
 class LastUpdateIntAttribute(Attribute):
     name = 'Last Update'
     typeCode = ATTR_TYPE_INT_LAST_UPDATE
@@ -675,6 +722,9 @@ Attribute.typeToClass = {
     ATTR_TYPE_ATOMIC_AGGREGATE:  AtomicAggregateAttribute,
     ATTR_TYPE_AGGREGATOR:        AggregatorAttribute,
     ATTR_TYPE_COMMUNITY:         CommunityAttribute,
+    
+    ATTR_TYPE_MP_REACH_NLRI:     MPReachNLRIAttribute,
+    ATTR_TYPE_MP_UNREACH_NLRI:   MPUnreachNLRIAttribute,
     
     ATTR_TYPE_INT_LAST_UPDATE:   LastUpdateIntAttribute
 }
