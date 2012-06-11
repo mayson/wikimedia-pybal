@@ -161,38 +161,62 @@ class IBGPPeering(Interface):
 class IPPrefix(object):
     """Class that represents an IP prefix"""
     
-    def __init__(self, ipprefix, addressFamily=AFI_INET):
+    def __init__(self, ipprefix, addressfamily=AFI_INET):
         self.prefix = None # packed ip string
         
         if isinstance(ipprefix, IPPrefix):
-            self.prefix, self.prefixlen = ipprefix.prefix, ipprefix.prefixlen
+            self.prefix, self.prefixlen, self.addressfamily = ipprefix.prefix, ipprefix.prefixlen, ipprefix.addressfamily
         elif type(ipprefix) is tuple:
+            # address family must be specified
+            if not addressfamily:
+                raise ValueError()
+            
+            self.addressfamily = addressfamily
+
             prefix, self.prefixlen = ipprefix
             if type(prefix) is str:
                 # tuple (ipstr, prefixlen)
                 self.prefix = prefix
             elif type(prefix) is int:
-                # tuple (ipint, prefixlen)
-                self.prefix = struct.pack('!I', prefix)
+                if self.addressfamily == AFI_INET:
+                    # tuple (ipint, prefixlen)
+                    self.prefix = struct.pack('!I', prefix)
+                else:
+                    raise ValueError()
             else:
                 # Assume prefix is a sequence of octets
                 self.prefix = "".join(map(chr, prefix))
         elif type(ipprefix) is str:
             # textual form
             prefix, prefixlen = ipprefix.split('/')
-            self.prefix = "".join([chr(int(o)) for o in prefix.split('.')])
+            if not addressfamily:
+                self.addressfamily = (':' in prefix and AFI_INET6 or AFI_INET)
+
+            if self.addressfamily == AFI_INET:
+                self.prefix = "".join([chr(int(o)) for o in prefix.split('.')])
+            elif self.addressfamily == AFI_INET6:
+                self.prefix = ""
+                hexlist = prefix.split(":")
+                if len(hexlist) > 8:
+                    raise ValueError()
+
+                for hexstr in hexlist:
+                    if hexstr is not "":
+                        self.prefix += struct.pack('!H', int(hexstr, 16))
+                    else:
+                        self.prefix += struct.pack('!%dH' % (8 - len(hexlist) + 1), 0)  
+                
             self.prefixlen = int(prefixlen)
-            # TODO: IPv6
         else:
-            raise ValueError
+            raise ValueError()
     
     def __repr__(self):
         return repr(str(self))
-        # TODO: IPv6
     
     def __str__(self):
-        prefix = self.prefix +  ('\0\0\0\0'[:4-len(self.prefix)])
-        return ".".join([str(ord(o)) for o in prefix]) + '/%d' % self.prefixlen
+        sep = (self.addressfamily == AFI_INET6 and ':' or '.')
+        
+        return sep.join([str(ord(o)) for o in self.packed(pad=True)]) + '/%d' % self.prefixlen
     
     def __eq__(self, other):
         # FIXME: masked ips
@@ -221,6 +245,9 @@ class IPPrefix(object):
     def __len__(self):
         return self.prefixlen
 
+    def _packedMaxLen(self):
+        return (self.addressfamily == AFI_INET6 and 16 or 4)
+
     def ipToInt(self):
         return reduce(lambda x, y: x * 256 + y, map(ord, self.prefix))
 
@@ -229,27 +256,43 @@ class IPPrefix(object):
 
     def mask(self, prefixlen, shorten=False):
         # DEBUG
-        assert len(self.prefix) == 4
+        assert len(self.prefix) == self.packedMaxLen()
         
         masklen = len(self.prefix) * 8 - prefixlen
         self.prefix = struct.pack('!I', self.ipToInt() >> masklen << masklen)
         if shorten: self.prefixlen = prefixlen
         return self
     
-    def packed(self):
-        return self.prefix
+    def packed(self, pad=False):
+        if pad:
+            return self.prefix + '\0' * (self.packedMaxLen() - len(self.prefix))
+        else:
+            return self.prefix
 
 class IPv4IP(IPPrefix):
     """Class that represents a single non-prefix IPv4 IP."""
     
     def __init__(self, ip):
-        if type(ip) is str and len(ip) > 4:
-            super(IPv4IP, self).__init__(ip + '/32')
+        if type(ip) is str and len(ip) > self._packedMaxLen():
+            super(IPv4IP, self).__init__(ip + '/32', AFI_INET)
         else:
-            super(IPv4IP, self).__init__((ip, 32))
+            super(IPv4IP, self).__init__((ip, 32), AFI_INET)
 
     def __str__(self):
         return ".".join([str(ord(o)) for o in self.prefix])
+
+class IPv6IP(IPPrefix):
+    """Class that represents a single non-prefix IPv6 IP."""
+    
+    def __init__(self, ip):
+        if type(ip) is str and len(ip) > self._packedMaxLen():
+            super(IPv6IP, self).__init__(ip + '/128', AFI_INET6)
+        else:
+            super(IPv6IP, self).__init__((ip, 128), AFI_INET6)
+
+    def __str__(self):
+        sep = (self.addressfamily == AFI_INET6 and ':' or '.')
+        return sep.join([str(ord(o)) for o in self.packed(pad=True)])
 
 class Attribute(object):
     """
