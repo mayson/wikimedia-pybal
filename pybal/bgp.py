@@ -193,8 +193,7 @@ class IPPrefix(object):
         elif type(ipprefix) is str:
             # textual form
             prefix, prefixlen = ipprefix.split('/')
-            if not addressfamily:
-                self.addressfamily = (':' in prefix and AFI_INET6 or AFI_INET)
+            self.addressfamily = addressfamily or (':' in prefix and AFI_INET6 or AFI_INET)
 
             if self.addressfamily == AFI_INET:
                 self.prefix = "".join([chr(int(o)) for o in prefix.split('.')])
