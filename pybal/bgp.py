@@ -638,7 +638,7 @@ class MPReachNLRIAttribute(Attribute):
         # Process NLRI
         try:
             nlri = BGP.parseEncodedPrefixList(value[5+nhlen:], afi)
-        except BGPError:
+        except BGPException:
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
         
         self.value = (afi, safi, nexthop, nlri)
@@ -685,7 +685,7 @@ class MPUnreachNLRIAttribute(Attribute):
         # Process NLRI
         try:
             nlri = BGP.parseEncodedPrefixList(value[3:], afi)
-        except BGPError:
+        except BGPException:
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
         
         self.value = (afi, safi, nlri)
@@ -1601,7 +1601,7 @@ class BGP(protocol.Protocol):
             prefixLen = ord(postfix[0])
             if (addressFamily == AFI_INET and prefixLen > 32
                 ) or (addressFamily == AFI_INET6 and prefixLen > 128):
-                raise BGPError(ERR_MSG_UPDATE, ERR_MSG_UPDATE_INVALID_NETWORK_FIELD)
+                raise BGPException(ERR_MSG_UPDATE, ERR_MSG_UPDATE_INVALID_NETWORK_FIELD)
             
             octetLen, remainder = prefixLen / 8, prefixLen % 8
             if remainder > 0:
