@@ -259,7 +259,7 @@ class IPPrefix(object):
 
     def mask(self, prefixlen, shorten=False):
         # DEBUG
-        assert len(self.prefix) == self.packedMaxLen()
+        assert len(self.prefix) == self._packedMaxLen()
         
         masklen = len(self.prefix) * 8 - prefixlen
         self.prefix = struct.pack('!I', self.ipToInt() >> masklen << masklen)
@@ -268,7 +268,7 @@ class IPPrefix(object):
     
     def packed(self, pad=False):
         if pad:
-            return self.prefix + '\0' * (self.packedMaxLen() - len(self.prefix))
+            return self.prefix + '\0' * (self._packedMaxLen() - len(self.prefix))
         else:
             return self.prefix
 
@@ -1543,8 +1543,11 @@ class BGP(protocol.Protocol):
             # RFC4271 dictates that we send ERR_MSG_UPDATE Malformed Attribute List
             # in this case
             self.fsm.updateError(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
-
-        return withdrawnPrefixes, attributes, nlri
+            
+            # updateError may have raised an exception. If not, we'll do it here.
+            raise
+        else:
+            return withdrawnPrefixes, attributes, nlri
     
     def parseKeepAlive(self, message):
         """Parses a BGP KeepAlive message"""
@@ -1660,7 +1663,7 @@ class BGP(protocol.Protocol):
             if remainder > 0:
                 prefixData[-1] = prefixData[-1] & (255 << (8-remainder))
                 
-            prefixes.append(IPPrefix((prefixData, prefixLen, addressFamily)))
+            prefixes.append(IPPrefix((prefixData, prefixLen), addressFamily))
             
             # Next prefix
             postfix = postfix[octetLen+1:]
