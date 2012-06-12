@@ -178,7 +178,7 @@ class IBGPPeering(Interface):
 class IPPrefix(object):
     """Class that represents an IP prefix"""
     
-    def __init__(self, ipprefix, addressfamily=AFI_INET):
+    def __init__(self, ipprefix, addressfamily=None):
         self.prefix = None # packed ip string
         
         if isinstance(ipprefix, IPPrefix):
@@ -351,6 +351,8 @@ class Attribute(object):
                 elif not self.optional:
                     raise AttributeException(ERR_MSG_UPDATE_UNRECOGNIZED_WELLKNOWN_ATTR, attrTuple)
             
+            self.fromTuple(attrTuple)
+
         self.type = self.__class__
     
     def __eq__(self, other):
@@ -404,12 +406,10 @@ class OriginAttribute(Attribute):
     ORIGIN_EGP = 1
     ORIGIN_INCOMPLETE = 2
 
-    def __init__(self, value=None):        
-        if type(value) is tuple:
-            super(OriginAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(OriginAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):        
+        super(OriginAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = False
             self.transitive = True
             self.value = value or self.ORIGIN_IGP
@@ -433,12 +433,10 @@ class ASPathAttribute(Attribute):
     name = 'AS Path'
     typeCode = ATTR_TYPE_AS_PATH
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(ASPathAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(ASPathAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(ASPathAttribute, self).__init__(attrTuple=attrTuple)
+
+        if not attrTuple:
             self.optional = False
             self.transitive = True
             
@@ -481,14 +479,12 @@ class NextHopAttribute(Attribute):
     
     ANY = None
 
-    def __init__(self, value=None):
+    def __init__(self, value=None, attrTuple=None):
         self.any = False
         
-        if type(value) is tuple:
-            super(NextHopAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(NextHopAttribute, self).__init__(None)
+        super(NextHopAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = False
             self.transitive = True
             self._set(value)
@@ -522,12 +518,10 @@ class MEDAttribute(Attribute):
     name = 'MED'
     typeCode = ATTR_TYPE_MULTI_EXIT_DISC
 
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(MEDAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(MEDAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(MEDAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = False
             self.value = value or 0
@@ -549,12 +543,10 @@ class LocalPrefAttribute(Attribute):
     name = 'Local Pref'
     typeCode = ATTR_TYPE_LOCAL_PREF
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(LocalPrefAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(LocalPrefAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(LocalPrefAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = False
             self.value = value or 0
@@ -576,12 +568,10 @@ class AtomicAggregateAttribute(Attribute):
     name = 'Atomic Aggregate'
     typeCode = ATTR_TYPE_ATOMIC_AGGREGATE
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(AtomicAggregateAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(AtomicAggregateAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(AtomicAggregateAttribute, self).__init__(attrTuple=attrTuple)
+
+        if not attrTuple:
             self.optional = False
             self.value = None
     
@@ -598,12 +588,10 @@ class AggregatorAttribute(Attribute):
     name = 'Aggregator'
     typeCode = ATTR_TYPE_AGGREGATOR
 
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(AggregatorAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(AggregatorAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(AggregatorAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = True
             self.value = value or (0, IPv4IP('0.0.0.0')) # TODO: IPv6
@@ -627,12 +615,10 @@ class CommunityAttribute(Attribute):
     name = 'Community'
     typeCode = ATTR_TYPE_COMMUNITY
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(CommunityAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(CommunityAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(CommunityAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = True
             self.value = value or []
@@ -657,15 +643,13 @@ class CommunityAttribute(Attribute):
 # RFC4760 attributes
 
 class MPBaseAttribute(Attribute):
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(MPBaseAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(MPBaseAttribute, self).__init__(None)
+    def __init__(self, value=(AFI_INET, SAFI_UNICAST), attrTuple=None):
+        super(MPBaseAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = False
-            self.afi, self.safi = self.value[0:2]
+            self.afi, self.safi = value[0:2]
 
     def fromTuple(self, attrTuple):
         if not self.optional or self.transitive:
@@ -707,10 +691,10 @@ class MPReachNLRIAttribute(MPBaseAttribute):
     # Tuple encoding of self.value:
     # (AFI, SAFI, NH, [NLRI])
     
-    def __init__(self, value=None):
-        self.value = value or (AFI_INET, SAFI_UNICAST, IPv4IP(), [])
+    def __init__(self, value=None, attrTuple=None):
+        super(MPReachNLRIAttribute, self).__init__(value=value, attrTuple=attrTuple)
 
-        super(MPReachNLRIAttribute, self).__init__(value)
+        self.value = value or (AFI_INET, SAFI_UNICAST, IPv4IP(), [])
     
     def fromTuple(self, attrTuple):
         super(MPReachNLRIAttribute, self).fromTuple(attrTuple)
@@ -749,10 +733,10 @@ class MPUnreachNLRIAttribute(MPBaseAttribute):
     # Tuple encoding of self.value:
     # (AFI, SAFI, [NLRI])
     
-    def __init__(self, value=None):
-        self.value = value or (AFI_INET, SAFI_UNICAST, [])
+    def __init__(self, value=None, attrTuple=None):
+        super(MPUnreachNLRIAttribute, self).__init__(value=value, attrTuple=attrTuple)
 
-        super(MPUnreachNLRIAttribute, self).__init__(value)
+        self.value = value or (AFI_INET, SAFI_UNICAST, [])
     
     def fromTuple(self, attrTuple):
         super(MPUnreachNLRIAttribute, self).fromTuple(attrTuple)
@@ -2202,6 +2186,7 @@ class NaiveBGPPeering(BGPPeering):
 
         return withdrawals, updates
         
+    
     def _sendUpdates(self, withdrawals, updates):
         """
         Takes a dict of sets of withdrawals and a dict of sets of
@@ -2268,6 +2253,7 @@ class NaiveBGPPeering(BGPPeering):
                 attributes.add(mpUnreach)
                 withdrawals.clear()
 
+        
     def _sendUpdate(self, withdrawals, attributes, advertisements):
         if len(withdrawals) + len(advertisements) > 0:
             # Check if the NextHop attribute needs to be replaced
