@@ -227,9 +227,10 @@ class IPPrefix(object):
         return repr(str(self))
     
     def __str__(self):
-        sep = (self.addressfamily == AFI_INET6 and ':' or '.')
-        
-        return sep.join([str(ord(o)) for o in self.packed(pad=True)]) + '/%d' % self.prefixlen
+        if self.addressfamily == AFI_INET:
+            return '.'.join([str(ord(o)) for o in self.packed(pad=True)]) + '/%d' % self.prefixlen
+        elif self.addressfamily == AFI_INET6:
+            return ':'.join([hex(o)[2:] for o in struct.unpack('!8H', self.packed(pad=True))]) + '/%d' % self.prefixlen       
     
     def __eq__(self, other):
         # FIXME: masked ips
@@ -260,7 +261,7 @@ class IPPrefix(object):
 
     def _packedMaxLen(self):
         return (self.addressfamily == AFI_INET6 and 16 or 4)
-
+    
     def ipToInt(self):
         return reduce(lambda x, y: x * 256 + y, map(ord, self.prefix))
 
@@ -307,8 +308,7 @@ class IPv6IP(IPPrefix):
             super(IPv6IP, self).__init__(ip + '/128', AFI_INET6)
 
     def __str__(self):
-        sep = (self.addressfamily == AFI_INET6 and ':' or '.')
-        return sep.join([str(ord(o)) for o in self.packed(pad=True)])
+        return ':'.join([hex(o)[2:] for o in struct.unpack('!8H', self.packed(pad=True))])  
 
 class Attribute(object):
     """
