@@ -509,7 +509,7 @@ class NextHopAttribute(Attribute):
     def _set(self, value):
         if value:
             if value in (0, 2**32-1):
-                raise AttributeException(ERR_MSG_UPDATE_INVALID_NEXTHOP, attrTuple)
+                raise AttributeException(ERR_MSG_UPDATE_INVALID_NEXTHOP)
             self.value = IPv4IP(value)
         else:
             self.value = IPv4IP('0.0.0.0')
@@ -2029,7 +2029,7 @@ class BGPPeering(BGPFactory):
             # the ids of current and/or previous sessions. Close all
             # connections.
             self.peerId = None
-            for c in inConnections + outConnections:
+            for c in self.inConnections + self.outConnections:
                 try:
                     c.fsm.openCollisionDump()
                 except NotificationSent, e:
@@ -2062,9 +2062,9 @@ class BGPPeering(BGPFactory):
         # Break the tie
         assert self.bgpId != protocol.peerId
         if self.bgpId < protocol.peerId:
-            dumpList = outConnections
+            dumpList = self.outConnections
         elif self.bgpId > protocol.peerId:
-            dumpList = inConnections
+            dumpList = self.inConnections
 
         for c in dumpList:
             try:
