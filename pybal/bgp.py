@@ -839,11 +839,11 @@ class BaseAttributeSet():
             raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
         else:
             # Add direct references for the mandatory well-known attributes
-            if type(attr) is OriginAttribute:
+            if isinstance(attr, OriginAttribute):
                 self.origin = attr
-            elif type(attr) is ASPathAttribute:
+            elif isinstance(attr, ASPathAttribute):
                 self.asPath = attr
-            elif type(attr) is NextHopAttribute:
+            elif isinstance(attr, NextHopAttribute):
                 self.nextHop = attr
         
 class FrozenAttributeSet(BaseAttributeSet, frozenset):
