@@ -2202,7 +2202,6 @@ class NaiveBGPPeering(BGPPeering):
 
         return withdrawals, updates
         
-    
     def _sendUpdates(self, withdrawals, updates):
         """
         Takes a dict of sets of withdrawals and a dict of sets of
@@ -2222,6 +2221,10 @@ class NaiveBGPPeering(BGPPeering):
             attributeMap = {}
             for advertisement in updates[af]:
                 attributeMap.setdefault(advertisement.attributes, set()).add(advertisement)
+            
+            # NLRI for address families other than inet unicast should
+            # get sent in MP Reach NLRI and MP Unreach NLRI attributes
+            self._moveToMPAttributes(af, attributeMap, withdrawals)
         
             # Send
             for attributes, advertisements in attributeMap.iteritems():
@@ -2231,7 +2234,40 @@ class NaiveBGPPeering(BGPPeering):
                     withdrawals[af] = set() # Only send withdrawals once
      
             self.advertised[af] = self.toAdvertise[af]
+
+    def _moveToMPAttributes(self, addressfamily, attributeMap, withdrawals):
+        """
+        Move NLRI for address families other than inet unicast out of
+        the normal updates/withdrawals sets, and construct MPReachNLRI/
+        MPUnreachNLRI for them.
         
+        Arguments:
+        - addressfamily: (AFI, SAFI) tuple
+        - attributeMap: a dict of FrozenAttributeSet to updates sets
+        - withdrawals: a set of advertisements to withdraw
+        """
+        
+        # Currently inet unicast advertisements are sent the old way
+        if addressfamily == (AFI_INET, SAFI_UNICAST):
+            return
+        
+        afi, safi = addressfamily
+        
+        # FIXME: get an appropriate nexthop
+        for attributes, advertisements in attributeMap.iteritems():
+            mpReach = MPReachNLRIAttribute((afi, safi, None, advertisements))
+            try:
+                attributes.add(mpReach) # FIXME: doesn't work with FrozenAttributeSet
+            except AttributeError:
+                newAttributes = FrozenAttributeSet(attributes)
+            attributeMap[attributes] = set()
+        
+            # Only send withdrawals once
+            if len(withdrawals):
+                mpUnreach = MPUnreachNLRIAttribute((afi, safi, withdrawals.copy()))
+                attributes.add(mpUnreach)
+                withdrawals.clear()
+
     def _sendUpdate(self, withdrawals, attributes, advertisements):
         if len(withdrawals) + len(advertisements) > 0:
             # Check if the NextHop attribute needs to be replaced
