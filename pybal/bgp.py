@@ -2144,8 +2144,9 @@ class NaiveBGPPeering(BGPPeering):
     def __init__(self, myASN=None, peerAddr=None):
         BGPPeering.__init__(self, myASN, peerAddr)
         
-        self.advertised = set()
-        self.toAdvertise = set()
+        # Dicts of sets per (AFI, SAFI) combination
+        self.advertised = {}
+        self.toAdvertise = {}
     
     def completeInit(self, protocol):
         """
@@ -2155,7 +2156,7 @@ class NaiveBGPPeering(BGPPeering):
         BGPPeering.completeInit(self, protocol)
         
         # (Re)init the existing set, they may get reused
-        self.advertised = set()
+        self.advertised = {}
     
     def sendAdvertisements(self):
         """
@@ -2167,21 +2168,45 @@ class NaiveBGPPeering(BGPPeering):
         
     def setAdvertisements(self, advertisements):
         """
-        Takes a set of Advertisements that will be announced.
+        Takes a dict of Advertisements per (AFI, SAFI) that will be announced.
         """
         
-        self.toAdvertise = set(advertisements)
-        
-        # Calculate changes
-        withdrawals = self.advertised - self.toAdvertise
-        updates = self.toAdvertise - self.advertised
+        if isinstance(advertisements, dict):
+            self.toAdvertise = advertisements
+        elif isinstance(advertisements, set):
+            # We got a set instead of a dict. Assume this is for (inet, unicast)
+            self.toAdvertise = {(AFI_INET, SAFI_UNICAST): advertisements}
+        else:
+            raise TypeError("setAdvertisements expected a dict of (AFI, SAFI): set")
+
+        # Make sure self.advertised and self.toAdvertise have sets
+        # for all required (AFI, SAFI) combinations, so this won't
+        # bite us later on
+        for af in set(self.advertised.keys() + self.toAdvertise.keys()):
+            self.advertised.setdefault(af, set())
+            self.toAdvertise.setdefault(af, set())
         
         # Try to send
-        self._sendUpdates(withdrawals, updates)
+        self._sendUpdates(*self._calculateChanges())
+    
+    def _calculateChanges(self):
+        """Calculates the needed updates (for all address (sub)families)
+        between previous advertisements (self.advertised) and to be
+        advertised NLRI (in self.toAdvertise)
+        """
+        
+        withdrawals, updates = {}, {}
+        for af in set(self.advertised.keys() + self.toAdvertise.keys()):
+            withdrawals[af] = self.advertised[af] - self.toAdvertise[af]
+            updates[af] = self.toAdvertise[af] - self.advertised[af]
+
+        return withdrawals, updates
+        
     
     def _sendUpdates(self, withdrawals, updates):
         """
-        Takes a set of withdrawals and a set of updates, sorts them to
+        Takes a dict of sets of withdrawals and a dict of sets of
+        updates (both per (AFI, SAFI) combination), sorts them to
         equal attributes and sends the advertisements if possible.
         Assumes that self.toAdvertise reflects the advertised state
         after withdrawals and updates.
@@ -2191,17 +2216,21 @@ class NaiveBGPPeering(BGPPeering):
         if not self.estabProtocol or self.fsm.state != ST_ESTABLISHED:
             return
         
-        # Map equal attributes to advertisements
-        attributeMap = {}
-        for advertisement in updates:
-            attributeMap.setdefault(advertisement.attributes, set()).add(advertisement)
-    
-        # Send
-        for attributes, advertisementList in attributeMap.iteritems():
-            self._sendUpdate(withdrawals, attributes, advertisementList)
-            withdrawals = set()
- 
-        self.advertised = self.toAdvertise
+        # Process per (AFI, SAFI) pair
+        for af in set(withdrawals.keys() + updates.keys()):
+            # Map equal attributes to advertisements
+            attributeMap = {}
+            for advertisement in updates[af]:
+                attributeMap.setdefault(advertisement.attributes, set()).add(advertisement)
+        
+            # Send
+            for attributes, advertisements in attributeMap.iteritems():
+                self._sendUpdate(withdrawals.get(af, set()), attributes, advertisements)
+                
+                if af in withdrawals:
+                    withdrawals[af] = set() # Only send withdrawals once
+     
+            self.advertised[af] = self.toAdvertise[af]
         
     def _sendUpdate(self, withdrawals, attributes, advertisements):
         if len(withdrawals) + len(advertisements) > 0:
