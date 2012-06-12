@@ -126,6 +126,9 @@ class NotificationSent(BGPException):
         self.error = error
         self.suberror = suberror
         self.data = data
+    
+    def __str__(self):
+        return repr((self.error, self.suberror, self.data))
 
 class BadMessageLength(BGPException):
     pass
@@ -653,7 +656,51 @@ class CommunityAttribute(Attribute):
 
 # RFC4760 attributes
 
-class MPReachNLRIAttribute(Attribute):
+class MPBaseAttribute(Attribute):
+    def __init__(self, value=None):
+        if type(value) is tuple:
+            super(MPBaseAttribute, self).__init__(value)
+            self.fromTuple(value)
+        else:
+            super(MPBaseAttribute, self).__init__(None)
+            self.optional = True
+            self.transitive = False
+            self.afi, self.safi = self.value[0:2]
+
+    def fromTuple(self, attrTuple):
+        if not self.optional or self.transitive:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+    
+    def _unpackAFI(self, attrTuple):
+        try:
+            self.afi, self.safi = struct.unpack('!HB', attrTuple[2][:3])
+        except struct.error:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        else:
+            if self.afi not in SUPPORTED_AFI or self.safi not in SUPPORTED_SAFI:
+                raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+    
+    def _parseNLRI(self, attrTuple, value):
+        try:
+            return BGP.parseEncodedPrefixList(value, self.afi)
+        except BGPException:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+    
+    @staticmethod
+    def afiStr(afi, safi):
+        return ({
+                 AFI_INET:   "inet",
+                 AFI_INET6:  "inet6"
+            }[afi],
+            {
+                 SAFI_UNICAST:   "unicast",
+                 SAFI_MULTICAST: "multicast"
+            }[safi])
+    
+    def __str__(self):
+        return "%s %s NLRI %s" % (MPBaseAttribute.afiStr(self.afi, self.safi) + (self.value[2], ))
+
+class MPReachNLRIAttribute(MPBaseAttribute):
     name = 'MP Reach NLRI'
     typeCode = ATTR_TYPE_MP_REACH_NLRI
     
@@ -661,53 +708,41 @@ class MPReachNLRIAttribute(Attribute):
     # (AFI, SAFI, NH, [NLRI])
     
     def __init__(self, value=None):
-        if type(value) is tuple:
-            super(MPReachNLRIAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(MPReachNLRIAttribute, self).__init__(None)
-            self.optional = True
-            self.transitive = False
-            self.value = value or (AFI_INET, SAFI_UNICAST, IPv4IP(), [])
+        self.value = value or (AFI_INET, SAFI_UNICAST, IPv4IP(), [])
+
+        super(MPReachNLRIAttribute, self).__init__(value)
     
     def fromTuple(self, attrTuple):
+        super(MPReachNLRIAttribute, self).fromTuple(attrTuple)
+        
+        self._unpackAFI(attrTuple)
+
         value = attrTuple[2]
-
-        if not self.optional or self.transitive:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
-
         try:
-            afi, safi, nhlen = struct.unpack('!HBB', value[:4])
-        except struct.error:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
-
-        if afi not in SUPPORTED_AFI or safi not in SUPPORTED_SAFI:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
-
-        try:
+            nhlen = struct.unpack('!B', value[3])[0]
             pnh = struct.unpack('!%ds' % nhlen, value[4:4+nhlen])[0]
         except struct.error:
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
         
-        if afi == AFI_INET:
+        if self.afi == AFI_INET:
             nexthop = IPv4IP(packed=pnh)
-        elif afi == AFI_INET6:
+        elif self.afi == AFI_INET6:
             nexthop = IPv6IP(packed=pnh)
 
-        # Process NLRI
-        try:
-            nlri = BGP.parseEncodedPrefixList(value[5+nhlen:], afi)
-        except BGPException:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        nlri = self._parseNLRI(attrTuple, value[5+nhlen:])
         
-        self.value = (afi, safi, nexthop, nlri)
+        self.value = (self.afi, self.safi, nexthop, nlri)
     
     def encode(self):
         afi, safi, nexthop, nlri = self.value
 
         return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop, 0) + BGP.encodePrefixes(nlri)
 
-class MPUnreachNLRIAttribute(Attribute):
+    def __str__(self):
+        return "%s %s NH %s NLRI %s" % (MPBaseAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
+
+
+class MPUnreachNLRIAttribute(MPBaseAttribute):
     name = 'MP Unreach NLRI'
     typeCode = ATTR_TYPE_MP_UNREACH_NLRI
     
@@ -715,36 +750,18 @@ class MPUnreachNLRIAttribute(Attribute):
     # (AFI, SAFI, [NLRI])
     
     def __init__(self, value=None):
-        if type(value) is tuple:
-            super(MPUnreachNLRIAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(MPUnreachNLRIAttribute, self).__init__(None)
-            self.optional = True
-            self.transitive = False
-            self.value = value or (AFI_INET, SAFI_UNICAST, [])
+        self.value = value or (AFI_INET, SAFI_UNICAST, [])
+
+        super(MPUnreachNLRIAttribute, self).__init__(value)
     
     def fromTuple(self, attrTuple):
-        value = attrTuple[2]
+        super(MPUnreachNLRIAttribute, self).fromTuple(attrTuple)
 
-        if not self.optional or self.transitive:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        self._unpackAFI(attrTuple)
 
-        try:
-            afi, safi = struct.unpack('!HB', value)
-        except struct.error:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
-
-        if afi not in SUPPORTED_AFI or safi not in SUPPORTED_SAFI:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
-
-        # Process NLRI
-        try:
-            nlri = BGP.parseEncodedPrefixList(value[3:], afi)
-        except BGPException:
-            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        nlri = self._parseNLRI(attrTuple, attrTuple[2][3:])
         
-        self.value = (afi, safi, nlri)
+        self.value = (self.afi, self.safi, nlri)
     
     def encode(self):
         afi, safi, nlri = self.value
