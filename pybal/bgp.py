@@ -834,12 +834,19 @@ class FrozenAttributeSet(BaseAttributeSet, frozenset):
     """Class that contains a single set of attributes attached to a list of NLRIs"""
 
     def __init__(self, attributes, checkMissing=True):
+
+        if isinstance(attributes, BaseAttributeSet):
+            attributes = frozenset(attributes)
+        
         super(FrozenAttributeSet, self).__init__(self._init(attributes, checkMissing))
 
 class AttributeSet(BaseAttributeSet, set):
     """Mutable variant of FrozenAttributeSet"""
 
     def __init__(self, attributes, checkMissing=True):
+        if isinstance(attributes, BaseAttributeSet):
+            attributes = set(attributes)
+        
         super(AttributeSet, self).__init__(self._init(attributes, checkMissing))
 
     def add(self, attr):
@@ -2209,7 +2216,7 @@ class NaiveBGPPeering(BGPPeering):
             
             # NLRI for address families other than inet unicast should
             # get sent in MP Reach NLRI and MP Unreach NLRI attributes
-            self._moveToMPAttributes(af, attributeMap, withdrawals)
+            attributeMap = self._moveToMPAttributes(af, attributeMap, withdrawals)
         
             # Send
             for attributes, advertisements in attributeMap.iteritems():
@@ -2230,28 +2237,31 @@ class NaiveBGPPeering(BGPPeering):
         - addressfamily: (AFI, SAFI) tuple
         - attributeMap: a dict of FrozenAttributeSet to updates sets
         - withdrawals: a set of advertisements to withdraw
+        
+        Returns:
+        - a new address map (dict)
         """
         
         # Currently inet unicast advertisements are sent the old way
         if addressfamily == (AFI_INET, SAFI_UNICAST):
-            return
+            return attributeMap
         
         afi, safi = addressfamily
+        newAttributeMap = {}
         
         # FIXME: get an appropriate nexthop
         for attributes, advertisements in attributeMap.iteritems():
-            mpReach = MPReachNLRIAttribute((afi, safi, None, advertisements))
-            try:
-                attributes.add(mpReach) # FIXME: doesn't work with FrozenAttributeSet
-            except AttributeError:
-                newAttributes = FrozenAttributeSet(attributes)
-            attributeMap[attributes] = set()
+            newAttributes = AttributeSet(attributes)
+            newAttributes.add(MPReachNLRIAttribute((afi, safi, None, advertisements)))
         
             # Only send withdrawals once
             if len(withdrawals):
-                mpUnreach = MPUnreachNLRIAttribute((afi, safi, withdrawals.copy()))
-                attributes.add(mpUnreach)
+                newAttributes.add(MPUnreachNLRIAttribute((afi, safi, withdrawals.copy())))
                 withdrawals.clear()
+                        
+            newAttributeMap[FrozenAttributeSet(newAttributes)] = set()
+        
+        return newAttributeMap
 
         
     def _sendUpdate(self, withdrawals, attributes, advertisements):
