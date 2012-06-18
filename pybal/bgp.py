@@ -742,6 +742,11 @@ class MPReachNLRIAttribute(BaseMPAttribute):
     def __str__(self):
         return "%s %s NH %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
 
+    def addPrefixes(self, prefixes):
+        """
+        Adds a (copied) list of prefixes to this attribute's NLRI
+        """
+        self.value = self.value[0:3] + (list(prefixes), )
 
 class MPUnreachNLRIAttribute(BaseMPAttribute):
     name = 'MP Unreach NLRI'
@@ -768,6 +773,12 @@ class MPUnreachNLRIAttribute(BaseMPAttribute):
         afi, safi, nlri = self.value
 
         return struct.pack('!HB', afi, safi) + BGP.encodePrefixes(nlri)
+
+    def addPrefixes(self, prefixes):
+        """
+        Adds a (copied) list of prefixes to this attribute's NLRI
+        """
+        self.value = self.value[0:2] + (list(prefixes), )
 
 class LastUpdateIntAttribute(Attribute):
     name = 'Last Update'
@@ -880,16 +891,24 @@ class AttributeDict(dict):
 
         if attributes.isinstance(AttributeDict):
             return dict.__init__(self, attributes)
-        else:
-            dict.__init__(self)
-        
-            for attr in iter(attributes):
-                if isinstance(attr, tuple):
-                    self._add(Attribute.fromTuple(attr))
-                elif isinstance(attr, Attribute):
-                    self._add(attr)
-                else:
-                    raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)        
+
+        dict.__init__(self)
+    
+        for attr in iter(attributes):
+            if isinstance(attr, tuple):
+                self._add(Attribute.fromTuple(attr))
+            elif isinstance(attr, Attribute):
+                self._add(attr)
+            else:
+                raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
+            
+        if checkMissing:
+            # Check whether all mandatory well-known attributes are present
+            for attr in [OriginAttribute, ASPathAttribute, NextHopAttribute]:
+                if attr not in self:
+                    raise AttributeException(ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR,
+                                             (0, attr.typeCode, None))
+
 
     def _add(self, attribute):
         """Adds attribute attr to the dict, raises AttributeException if already present"""
@@ -908,6 +927,13 @@ class FrozenAttributeDict(AttributeDict):
                  'pop', 'popitem', 'setdefault', 'update', 'add']:
         del FrozenAttributeDict.__dict__[attr]
 
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+    
+    def __hash__(self):
+        import operator
+        return reduce(operator.xor, map(hash, self.itervalues()), 0)
+
 class Advertisement(object):
     """
     Class that represents a single BGP advertisement, consisting of an IP network prefix,
@@ -916,7 +942,7 @@ class Advertisement(object):
     
     def __init__(self, prefix, attributes=None, addressfamily=(AFI_INET, SAFI_UNICAST)):
         self.prefix = prefix
-        self.attributes = attributes or AttributeSet([OriginAttribute(),
+        self.attributes = attributes or AttributeDict([OriginAttribute(),
                                                       ASPathAttribute(),
                                                       NextHopAttribute(NextHopAttribute.ANY)])
         self.addressfamily = addressfamily
@@ -1671,7 +1697,7 @@ class BGP(protocol.Protocol):
         """Called when a BGP Update message was received."""
         
         try:
-            attrSet = AttributeSet(attributes, checkMissing=(len(nlri)>0))
+            attrSet = AttributeDict(attributes, checkMissing=(len(nlri)>0))
         except AttributeException, e:
             if type(e.data) is tuple:
                 self.fsm.updateError(e.suberror, (e.data[2] and self.encodeAttribute(e.data) or chr(e.data[1])))
@@ -2276,7 +2302,7 @@ class NaiveBGPPeering(BGPPeering):
         
         Arguments:
         - addressfamily: (AFI, SAFI) tuple
-        - attributeMap: a dict of FrozenAttributeSet to updates sets
+        - attributeMap: a dict of FrozenAttributeDict to updates sets
         - withdrawals: a set of advertisements to withdraw
         
         Returns:
@@ -2291,15 +2317,18 @@ class NaiveBGPPeering(BGPPeering):
         newAttributeMap = {}
         
         for attributes, advertisements in attributeMap.iteritems():
-            newAttributes = AttributeSet(attributes)
-            newAttributes.add(MPReachNLRIAttribute((afi, safi, None, advertisements)))
+            newAttributes = AttributeDict(attributes)
+            try:
+                newAttributes[MPReachNLRIAttribute].addPrefixes(advertisements)
+            except KeyError:
+                raise ValueError("Missing MPReachNLRIAttribute")
         
             # Only send withdrawals once
             if len(withdrawals):
                 newAttributes.add(MPUnreachNLRIAttribute((afi, safi, withdrawals.copy())))
                 withdrawals.clear()
                         
-            newAttributeMap[FrozenAttributeSet(newAttributes)] = set()
+            newAttributeMap[FrozenAttributeDict(newAttributes)] = set()
         
         return newAttributeMap
 
@@ -2307,7 +2336,7 @@ class NaiveBGPPeering(BGPPeering):
     def _sendUpdate(self, withdrawals, attributes, advertisements):
         if len(withdrawals) + len(advertisements) > 0:
             # Check if the NextHop attribute needs to be replaced
-            if attributes.nextHop.any:
-                attributes.nextHop.set(self.estabProtocol.transport.getHost().host) # FIXME: Attributes are meant to be immutable!
+            if attributes[NextHopAttribute].any:
+                attributes[NextHopAttribute].set(self.estabProtocol.transport.getHost().host) # FIXME: Attributes are meant to be immutable!
             
             self.estabProtocol.sendUpdate([w.prefix for w in withdrawals], attributes, [a.prefix for a in advertisements])
