@@ -401,7 +401,7 @@ class Attribute(object):
     def encode(self):
         return BGP.encodeAttribute(self.flags(), self.typeCode, self.value)
 
-class OriginAttribute(Attribute):
+class BaseOriginAttribute(Attribute):
     name = 'Origin'
     typeCode = ATTR_TYPE_ORIGIN
     
@@ -410,7 +410,7 @@ class OriginAttribute(Attribute):
     ORIGIN_INCOMPLETE = 2
 
     def __init__(self, value=None, attrTuple=None):        
-        super(OriginAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseOriginAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
             self.optional = False
@@ -431,13 +431,15 @@ class OriginAttribute(Attribute):
     
     def encode(self):
         return struct.pack('!BBBB', self.flags(), self.typeCode, 1, self.value)
+
+class OriginAttribute(BaseOriginAttribute): pass
             
-class ASPathAttribute(Attribute):
+class BaseASPathAttribute(Attribute):
     name = 'AS Path'
     typeCode = ATTR_TYPE_AS_PATH
     
     def __init__(self, value=None, attrTuple=None):
-        super(ASPathAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseASPathAttribute, self).__init__(attrTuple=attrTuple)
 
         if not attrTuple:
             self.optional = False
@@ -475,8 +477,10 @@ class ASPathAttribute(Attribute):
 
     def __str__(self):
         return " ".join([" ".join([str(asn) for asn in path]) for type, path in self.value])
+
+class ASPathAttribute(BaseASPathAttribute): pass
         
-class NextHopAttribute(Attribute):
+class BaseNextHopAttribute(Attribute):
     name = 'Next Hop'
     typeCode = ATTR_TYPE_NEXT_HOP
     
@@ -485,7 +489,7 @@ class NextHopAttribute(Attribute):
     def __init__(self, value=None, attrTuple=None):
         self.any = False
         
-        super(NextHopAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseNextHopAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
             self.optional = False
@@ -513,16 +517,16 @@ class NextHopAttribute(Attribute):
         else:
             self.value = IPv4IP('0.0.0.0')
             self.any = True
-    
-    # FIXME: Remove this method (violates immutability) and make AttributeSet changes more convenient
-    set = _set
 
-class MEDAttribute(Attribute):
+class NextHopAttribute(BaseNextHopAttribute):    
+    set = BaseNextHopAttribute._set
+
+class BaseMEDAttribute(Attribute):
     name = 'MED'
     typeCode = ATTR_TYPE_MULTI_EXIT_DISC
 
     def __init__(self, value=None, attrTuple=None):
-        super(MEDAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseMEDAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
             self.optional = True
@@ -541,13 +545,15 @@ class MEDAttribute(Attribute):
     
     def encode(self):
         return struct.pack('!BBBI', self.flags(), self.typeCode, 4, self.value)
+
+class MEDAttribute(BaseMEDAttribute): pass
         
-class LocalPrefAttribute(Attribute):
+class BaseLocalPrefAttribute(Attribute):
     name = 'Local Pref'
     typeCode = ATTR_TYPE_LOCAL_PREF
     
     def __init__(self, value=None, attrTuple=None):
-        super(LocalPrefAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseLocalPrefAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
             self.optional = True
@@ -566,13 +572,15 @@ class LocalPrefAttribute(Attribute):
     
     def encode(self):
         return struct.pack('!BBBI', self.flags(), self.typeCode, 4, self.value)
+
+class LocalPrefAttribute(BaseLocalPrefAttribute): pass
     
-class AtomicAggregateAttribute(Attribute):
+class BaseAtomicAggregateAttribute(Attribute):
     name = 'Atomic Aggregate'
     typeCode = ATTR_TYPE_ATOMIC_AGGREGATE
     
     def __init__(self, value=None, attrTuple=None):
-        super(AtomicAggregateAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseAtomicAggregateAttribute, self).__init__(attrTuple=attrTuple)
 
         if not attrTuple:
             self.optional = False
@@ -587,12 +595,14 @@ class AtomicAggregateAttribute(Attribute):
     def encode(self):
         return struct.pack('!BBB', self.flags(), self.typeCode, 0)
 
-class AggregatorAttribute(Attribute):
+class AtomicAggregateAttribute(BaseAtomicAggregateAttribute): pass
+
+class BaseAggregatorAttribute(Attribute):
     name = 'Aggregator'
     typeCode = ATTR_TYPE_AGGREGATOR
 
     def __init__(self, value=None, attrTuple=None):
-        super(AggregatorAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseAggregatorAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
             self.optional = True
@@ -614,12 +624,14 @@ class AggregatorAttribute(Attribute):
     def encode(self):
         return struct.pack('!BBBH', self.flags(), self.typeCode, 6, self.value[0]) + self.value[1].packed()
 
-class CommunityAttribute(Attribute):
+class AggregatorAttribute(BaseAggregatorAttribute): pass
+
+class BaseCommunityAttribute(Attribute):
     name = 'Community'
     typeCode = ATTR_TYPE_COMMUNITY
     
     def __init__(self, value=None, attrTuple=None):
-        super(CommunityAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseCommunityAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
             self.optional = True
@@ -643,11 +655,13 @@ class CommunityAttribute(Attribute):
     def __str__(self):
         return str(["%d:%d" % (c / 2**16, c % 2**16) for c in self.value])
 
+class CommunityAttribute(BaseCommunityAttribute): pass
+
 # RFC4760 attributes
 
-class MPBaseAttribute(Attribute):
+class BaseMPAttribute(Attribute):
     def __init__(self, value=(AFI_INET, SAFI_UNICAST), attrTuple=None):
-        super(MPBaseAttribute, self).__init__(attrTuple=attrTuple)
+        super(BaseMPAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
             self.optional = True
@@ -685,9 +699,9 @@ class MPBaseAttribute(Attribute):
             }[safi])
     
     def __str__(self):
-        return "%s %s NLRI %s" % (MPBaseAttribute.afiStr(self.afi, self.safi) + (self.value[2], ))
+        return "%s %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + (self.value[2], ))
 
-class MPReachNLRIAttribute(MPBaseAttribute):
+class MPReachNLRIAttribute(BaseMPAttribute):
     name = 'MP Reach NLRI'
     typeCode = ATTR_TYPE_MP_REACH_NLRI
     
@@ -726,10 +740,10 @@ class MPReachNLRIAttribute(MPBaseAttribute):
         return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop, 0) + BGP.encodePrefixes(nlri)
 
     def __str__(self):
-        return "%s %s NH %s NLRI %s" % (MPBaseAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
+        return "%s %s NH %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
 
 
-class MPUnreachNLRIAttribute(MPBaseAttribute):
+class MPUnreachNLRIAttribute(BaseMPAttribute):
     name = 'MP Unreach NLRI'
     typeCode = ATTR_TYPE_MP_UNREACH_NLRI
     
