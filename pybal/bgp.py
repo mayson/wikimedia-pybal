@@ -362,6 +362,9 @@ class Attribute(object):
     def __ne__(self, other):
         return not self.__eq__(other)
     
+    def __hash__(self):
+        return hash(self.tuple())
+    
     def __repr__(self):
         return repr(self.tuple())
     
@@ -860,11 +863,12 @@ class Advertisement(object):
     BGP attributes and optional extra information
     """
     
-    def __init__(self, prefix, attributes=None):
+    def __init__(self, prefix, attributes=None, addressfamily=(AFI_INET, SAFI_UNICAST)):
         self.prefix = prefix
         self.attributes = attributes or AttributeSet([OriginAttribute(),
                                                       ASPathAttribute(),
                                                       NextHopAttribute(NextHopAttribute.ANY)])
+        self.addressfamily = addressfamily
         
 class FSM(object):
     class BGPTimer(object):
@@ -2155,26 +2159,13 @@ class NaiveBGPPeering(BGPPeering):
         
     def setAdvertisements(self, advertisements):
         """
-        Takes a dict of Advertisements per (AFI, SAFI) that will be announced.
+        Takes a set of Advertisements that will be announced.
         """
-        
-        if isinstance(advertisements, dict):
-            if not set(advertisements.keys()).issubset(self.addressFamilies):
-                raise ValueError("Address families not enabled on this BGP Peering")
-            
-            self.toAdvertise = advertisements
-        elif isinstance(advertisements, set):
-            # We got a set instead of a dict. Assume this is for (inet, unicast)
-            self.toAdvertise = {(AFI_INET, SAFI_UNICAST): advertisements}
-        else:
-            raise TypeError("setAdvertisements expected a dict of (AFI, SAFI): set")
 
-        # Make sure self.advertised and self.toAdvertise have sets
-        # for all required (AFI, SAFI) combinations, so this won't
-        # bite us later on
-        for af in set(self.advertised.keys() + self.toAdvertise.keys()):
+        self.toAdvertise = {}
+        for af in self.addressFamilies:
             self.advertised.setdefault(af, set())
-            self.toAdvertise.setdefault(af, set())
+            self.toAdvertise[af] = set([ad for ad in list(advertisements) if ad.addressfamily == af])
         
         # Try to send
         self._sendUpdates(*self._calculateChanges())
@@ -2229,7 +2220,7 @@ class NaiveBGPPeering(BGPPeering):
     def _moveToMPAttributes(self, addressfamily, attributeMap, withdrawals):
         """
         Move NLRI for address families other than inet unicast out of
-        the normal updates/withdrawals sets, and construct MPReachNLRI/
+        the normal updates/withdrawals sets, and (re)construct MPReachNLRI/
         MPUnreachNLRI for them.
         
         Arguments:
@@ -2248,7 +2239,6 @@ class NaiveBGPPeering(BGPPeering):
         afi, safi = addressfamily
         newAttributeMap = {}
         
-        # FIXME: get an appropriate nexthop
         for attributes, advertisements in attributeMap.iteritems():
             newAttributes = AttributeSet(attributes)
             newAttributes.add(MPReachNLRIAttribute((afi, safi, None, advertisements)))
@@ -2267,6 +2257,6 @@ class NaiveBGPPeering(BGPPeering):
         if len(withdrawals) + len(advertisements) > 0:
             # Check if the NextHop attribute needs to be replaced
             if attributes.nextHop.any:
-                attributes.nextHop.set(self.estabProtocol.transport.getHost().host) # FIXME: IPv6 # FIXME: Attributes are meant to be immutable!
+                attributes.nextHop.set(self.estabProtocol.transport.getHost().host) # FIXME: Attributes are meant to be immutable!
             
             self.estabProtocol.sendUpdate([w.prefix for w in withdrawals], attributes, [a.prefix for a in advertisements])
