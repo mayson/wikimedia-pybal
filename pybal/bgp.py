@@ -857,6 +857,43 @@ class AttributeSet(BaseAttributeSet, set):
         
     # FIXME: check/implement other set methods
 
+class AttributeDict(dict):
+    def __init__(self, attributes, checkMissing=False):
+        """
+        Expects another AttributeDict object, or a sequence of
+        either unparsed attribute tuples, or parsed Attribute inheritors.
+        """
+
+        if attributes.isinstance(AttributeDict):
+            return dict.__init__(self, attributes)
+        else:
+            dict.__init__(self)
+        
+            for attr in iter(attributes):
+                if isinstance(attr, tuple):
+                    self._add(Attribute.fromTuple(attr))
+                elif isinstance(attr, Attribute):
+                    self._add(attr)
+                else:
+                    raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)        
+
+    def _add(self, attribute):
+        """Adds attribute attr to the dict, raises AttributeException if already present"""
+
+        if attribute.__class__ in self:
+            # Attribute was already present
+            raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
+        else:
+            self[attribute.__class__] = attribute
+    
+    add = _add
+    
+class FrozenAttributeDict(AttributeDict):
+    # Remove all writeable methods
+    for attr in ['__delitem__', '__setitem__', 'clear', 'fromkeys',
+                 'pop', 'popitem', 'setdefault', 'update', 'add']:
+        del FrozenAttributeDict.__dict__[attr]
+
 class Advertisement(object):
     """
     Class that represents a single BGP advertisement, consisting of an IP network prefix,
