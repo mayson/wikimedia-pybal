@@ -1669,9 +1669,8 @@ class BGP(protocol.Protocol):
     def _capabilities(self):
         # Determine capabilities
         capabilities = []
-        for afi, safis in self.factory.addressFamilies.iteritems():
-            for safi in safis:
-                capabilities.append((CAP_MP_EXT, struct.pack('!HBB', afi, 0, safi)))
+        for afi, safi in list(self.factory.addressFamilies):
+            capabilities.append((CAP_MP_EXT, struct.pack('!HBB', afi, 0, safi)))
         
         return capabilities
 
@@ -1830,7 +1829,7 @@ class BGPPeering(BGPFactory):
         self.peerAddr = peerAddr
         self.peerId = None
         self.fsm = BGPFactory.FSM(self)
-        self.addressFamilies = { AFI_INET: [SAFI_UNICAST] }
+        self.addressFamilies = set(( AFI_INET, SAFI_UNICAST ))
         self.inConnections = []
         self.outConnections = []
         self.estabProtocol = None    # reference to the BGPProtocol instance in ESTAB state
@@ -2116,12 +2115,9 @@ class BGPPeering(BGPFactory):
         containing iterables with Sub-AFIs
         """
         
-        for afi, safis in addressFamilies.iteritems():
-            if afi not in SUPPORTED_AFI:
-                raise ValueError()
-            for safi in safis:
-                if safi not in SUPPORTED_SAFI:
-                    raise ValueError()
+        for afi, safi in list(addressFamilies):
+            if afi not in SUPPORTED_AFI or safi not in SUPPORTED_SAFI:
+                raise ValueError("Address family (%d, %d) not supported" % (afi, safi))
         
         self.addressFamilies = addressFamilies
 
@@ -2163,6 +2159,9 @@ class NaiveBGPPeering(BGPPeering):
         """
         
         if isinstance(advertisements, dict):
+            if not set(advertisements.keys()).issubset(self.addressFamilies):
+                raise ValueError("Address families not enabled on this BGP Peering")
+            
             self.toAdvertise = advertisements
         elif isinstance(advertisements, set):
             # We got a set instead of a dict. Assume this is for (inet, unicast)
