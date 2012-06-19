@@ -220,7 +220,8 @@ class IPPrefix(object):
                     if hexstr is not "":
                         self.prefix += struct.pack('!H', int(hexstr, 16))
                     else:
-                        self.prefix += struct.pack('!%dH' % (8 - len(hexlist) + 1), 0)  
+                        zeroCount = 8 - len(hexlist) + 1
+                        self.prefix += struct.pack('!%dH' % zeroCount, *((0,) * zeroCount))  
                 
             self.prefixlen = int(prefixlen)
         else:
@@ -477,6 +478,9 @@ class BaseASPathAttribute(Attribute):
 
     def __str__(self):
         return " ".join([" ".join([str(asn) for asn in path]) for type, path in self.value])
+    
+    def __hash__(self):
+        return hash(tuple([(segtype, tuple(path)) for segtype, path in self.value]))
 
 class ASPathAttribute(BaseASPathAttribute): pass
         
@@ -654,6 +658,9 @@ class BaseCommunityAttribute(Attribute):
     
     def __str__(self):
         return str(["%d:%d" % (c / 2**16, c % 2**16) for c in self.value])
+    
+    def __hash__(self):
+        return hash(tuple(self.value))
 
 class CommunityAttribute(BaseCommunityAttribute): pass
 
@@ -737,10 +744,13 @@ class MPReachNLRIAttribute(BaseMPAttribute):
     def encode(self):
         afi, safi, nexthop, nlri = self.value
 
-        return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop, 0) + BGP.encodePrefixes(nlri)
+        return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop.packed(), 0) + BGP.encodePrefixes(nlri)
 
     def __str__(self):
         return "%s %s NH %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
+    
+    def __hash__(self):
+        return hash(self.value[0:3]) ^ hash(frozenset(self.value[3]))
 
     def addPrefixes(self, prefixes):
         """
@@ -779,6 +789,10 @@ class MPUnreachNLRIAttribute(BaseMPAttribute):
         Adds a (copied) list of prefixes to this attribute's NLRI
         """
         self.value = self.value[0:2] + (list(prefixes), )
+
+    def __hash__(self):
+        return hash(self.value[0:2]) ^ hash(frozenset(self.value[2]))
+
 
 class LastUpdateIntAttribute(Attribute):
     name = 'Last Update'
@@ -889,7 +903,7 @@ class AttributeDict(dict):
         either unparsed attribute tuples, or parsed Attribute inheritors.
         """
 
-        if attributes.isinstance(AttributeDict):
+        if isinstance(attributes, AttributeDict):
             return dict.__init__(self, attributes)
 
         dict.__init__(self)
@@ -917,16 +931,25 @@ class AttributeDict(dict):
             # Attribute was already present
             raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
         else:
-            self[attribute.__class__] = attribute
+            super(AttributeDict, self).__setitem__(attribute.__class__, attribute)
     
     add = _add
     
+    def __str__(self):
+        return "{%s}" % ", ".join(["%s: %s" % (attrType.__name__, str(attr)) for attrType, attr in self.iteritems()])
+    
 class FrozenAttributeDict(AttributeDict):
-    # Remove all writeable methods
-    for attr in ['__delitem__', '__setitem__', 'clear', 'fromkeys',
-                 'pop', 'popitem', 'setdefault', 'update', 'add']:
-        del FrozenAttributeDict.__dict__[attr]
-
+    __delitem__ = None
+    __setitem__ = None
+    clear = None
+    fromkeys = None
+    pop = None
+    popitem = None
+    setdefault = None
+    update = None
+    add = None
+    
+    
     def __eq__(self, other):
         return hash(self) == hash(other)
     
@@ -1825,7 +1848,7 @@ class BGP(protocol.Protocol):
         """Encodes a set of attributes"""
         
         attrData = ""
-        for attr in attributes:
+        for attr in attributes.itervalues():
             if isinstance(attr, Attribute):
                 attrData += attr.encode()
             else:
@@ -2242,7 +2265,7 @@ class NaiveBGPPeering(BGPPeering):
         self.toAdvertise = {}
         for af in self.addressFamilies:
             self.advertised.setdefault(af, set())
-            self.toAdvertise[af] = set([ad for ad in list(advertisements) if ad.addressfamily == af])
+            self.toAdvertise[af] = set([ad for ad in iter(advertisements) if ad.addressfamily == af])
         
         # Try to send
         self._sendUpdates(*self._calculateChanges())
@@ -2319,14 +2342,15 @@ class NaiveBGPPeering(BGPPeering):
         for attributes, advertisements in attributeMap.iteritems():
             newAttributes = AttributeDict(attributes)
             try:
-                newAttributes[MPReachNLRIAttribute].addPrefixes(advertisements)
+                newAttributes[MPReachNLRIAttribute].addPrefixes([ad.prefix for ad in advertisements])
             except KeyError:
                 raise ValueError("Missing MPReachNLRIAttribute")
         
             # Only send withdrawals once
-            if len(withdrawals):
-                newAttributes.add(MPUnreachNLRIAttribute((afi, safi, withdrawals.copy())))
-                withdrawals.clear()
+            if len(withdrawals.get(addressfamily, set())) > 0:
+                newAttributes.add(MPUnreachNLRIAttribute((afi, safi,
+                    [w.prefix for w in withdrawals[addressfamily]])))
+                withdrawals[addressfamily].clear()
                         
             newAttributeMap[FrozenAttributeDict(newAttributes)] = set()
         
@@ -2334,9 +2358,7 @@ class NaiveBGPPeering(BGPPeering):
 
         
     def _sendUpdate(self, withdrawals, attributes, advertisements):
-        if len(withdrawals) + len(advertisements) > 0:
-            # Check if the NextHop attribute needs to be replaced
-            if attributes[NextHopAttribute].any:
-                attributes[NextHopAttribute].set(self.estabProtocol.transport.getHost().host) # FIXME: Attributes are meant to be immutable!
-            
+        if (len(withdrawals) + len(advertisements) > 0
+            ) or (MPReachNLRIAttribute in attributes
+            ) or (MPUnreachNLRIAttribute in attributes):
             self.estabProtocol.sendUpdate([w.prefix for w in withdrawals], attributes, [a.prefix for a in advertisements])
