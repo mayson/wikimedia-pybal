@@ -352,7 +352,7 @@ class Attribute(object):
                 elif not self.optional:
                     raise AttributeException(ERR_MSG_UPDATE_UNRECOGNIZED_WELLKNOWN_ATTR, attrTuple)
             
-            self.fromTuple(attrTuple)
+            self._initFromTuple(attrTuple)
 
         self.type = self.__class__
     
@@ -390,6 +390,9 @@ class Attribute(object):
     
     def tuple(self):
         return (self.flags(), self.typeCode, self.value)       
+
+    def _initFromTuple(self, attrTuple):
+        pass
     
     @classmethod
     def fromTuple(cls, attrTuple):
@@ -397,7 +400,7 @@ class Attribute(object):
         given attribute tuple.
         """
 
-        return cls.typeToClass.get(attrTuple[1], cls)(attrTuple)
+        return cls.typeToClass.get(attrTuple[1], cls)(attrTuple=attrTuple)
     
     def encode(self):
         return BGP.encodeAttribute(self.flags(), self.typeCode, self.value)
@@ -418,7 +421,7 @@ class BaseOriginAttribute(Attribute):
             self.transitive = True
             self.value = value or self.ORIGIN_IGP
 
-    def fromTuple(self, attrTuple):        
+    def _initFromTuple(self, attrTuple):        
         value = attrTuple[2]
         
         if self.optional or not self.transitive:
@@ -451,7 +454,7 @@ class BaseASPathAttribute(Attribute):
                 value = [(2, value)]
             self.value = value or [(2, [])] # One segment with one AS path sequence
     
-    def fromTuple(self, attrTuple):
+    def _initFromTuple(self, attrTuple):
         value = attrTuple[2]
 
         if self.optional or not self.transitive:
@@ -500,7 +503,7 @@ class BaseNextHopAttribute(Attribute):
             self.transitive = True
             self._set(value)
 
-    def fromTuple(self, attrTuple):      
+    def _initFromTuple(self, attrTuple):      
         value = attrTuple[2]
         
         if self.optional or not self.transitive:
@@ -508,7 +511,7 @@ class BaseNextHopAttribute(Attribute):
         if len(value) != 4:
             raise AttributeException(ERR_MSG_UPDATE_ATTR_LEN, attrTuple)        
         
-        self.set(value)
+        self._set(value)
     
     def encode(self):
         return struct.pack('!BBB', self.flags(), self.typeCode, len(self.value.packed())) + self.value.packed()
@@ -537,7 +540,7 @@ class BaseMEDAttribute(Attribute):
             self.transitive = False
             self.value = value or 0
 
-    def fromTuple(self, attrTuple):       
+    def _initFromTuple(self, attrTuple):       
         value = attrTuple[2]
         
         if not self.optional or self.transitive:
@@ -564,7 +567,7 @@ class BaseLocalPrefAttribute(Attribute):
             self.transitive = False
             self.value = value or 0
     
-    def fromTuple(self, attrTuple):       
+    def _initFromTuple(self, attrTuple):       
         value = attrTuple[2]
         
         if not self.optional or self.transitive:
@@ -590,7 +593,7 @@ class BaseAtomicAggregateAttribute(Attribute):
             self.optional = False
             self.value = None
     
-    def fromTuple(self, attrTuple):        
+    def _initFromTuple(self, attrTuple):        
         if self.optional:
             raise AttributeException(ERR_MSG_UPDATE_ATTR_FLAGS, attrTuple)
         if len(attrTuple[2]) != 0:
@@ -613,7 +616,7 @@ class BaseAggregatorAttribute(Attribute):
             self.transitive = True
             self.value = value or (0, IPv4IP('0.0.0.0')) # TODO: IPv6
 
-    def fromTuple(self, attrTuple):       
+    def _initFromTuple(self, attrTuple):       
         value = attrTuple[2]
 
         if not self.optional or not self.transitive:
@@ -642,7 +645,7 @@ class BaseCommunityAttribute(Attribute):
             self.transitive = True
             self.value = value or []
     
-    def fromTuple(self, attrTuple):
+    def _initFromTuple(self, attrTuple):
         value = attrTuple[2]
         
         if not self.optional or not self.transitive:
@@ -675,7 +678,7 @@ class BaseMPAttribute(Attribute):
             self.transitive = False
             self.afi, self.safi = value[0:2]
 
-    def fromTuple(self, attrTuple):
+    def _initFromTuple(self, attrTuple):
         if not self.optional or self.transitive:
             raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
     
@@ -720,8 +723,8 @@ class MPReachNLRIAttribute(BaseMPAttribute):
 
         self.value = value or (AFI_INET, SAFI_UNICAST, IPv4IP(), [])
     
-    def fromTuple(self, attrTuple):
-        super(MPReachNLRIAttribute, self).fromTuple(attrTuple)
+    def _initFromTuple(self, attrTuple):
+        super(MPReachNLRIAttribute, self)._initFromTuple(attrTuple)
         
         self._unpackAFI(attrTuple)
 
@@ -743,8 +746,9 @@ class MPReachNLRIAttribute(BaseMPAttribute):
     
     def encode(self):
         afi, safi, nexthop, nlri = self.value
+        pnh = nexthop.packed()
 
-        return struct.pack('!HBB%dsB' % len(nexthop.packed()), afi, safi, len(nexthop), nexthop.packed(), 0) + BGP.encodePrefixes(nlri)
+        return struct.pack('!BBHBB%dsB' % len(pnh), self.flags(), self.typeCode, afi, safi, len(pnh), pnh, 0) + BGP.encodePrefixes(nlri)
 
     def __str__(self):
         return "%s %s NH %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
@@ -770,8 +774,8 @@ class MPUnreachNLRIAttribute(BaseMPAttribute):
 
         self.value = value or (AFI_INET, SAFI_UNICAST, [])
     
-    def fromTuple(self, attrTuple):
-        super(MPUnreachNLRIAttribute, self).fromTuple(attrTuple)
+    def _initFromTuple(self, attrTuple):
+        super(MPUnreachNLRIAttribute, self)._initFromTuple(attrTuple)
 
         self._unpackAFI(attrTuple)
 
@@ -782,7 +786,7 @@ class MPUnreachNLRIAttribute(BaseMPAttribute):
     def encode(self):
         afi, safi, nlri = self.value
 
-        return struct.pack('!HB', afi, safi) + BGP.encodePrefixes(nlri)
+        return struct.pack('!BBHB', self.flags(), self.typeCode, afi, safi) + BGP.encodePrefixes(nlri)
 
     def addPrefixes(self, prefixes):
         """
@@ -798,15 +802,7 @@ class LastUpdateIntAttribute(Attribute):
     name = 'Last Update'
     typeCode = ATTR_TYPE_INT_LAST_UPDATE
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(LastUpdateIntAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(LastUpdateIntAttribute, self).__init__(None)
-            self.value = value        
-    
-    def fromTuple(self, attrTuple):
+    def _initFromTuple(self, attrTuple):
         self.value = attrTuple[2]
     
 Attribute.typeToClass = {
