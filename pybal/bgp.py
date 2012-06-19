@@ -923,11 +923,16 @@ class AttributeDict(dict):
     def _add(self, attribute):
         """Adds attribute attr to the dict, raises AttributeException if already present"""
 
-        if attribute.__class__ in self:
+        if attribute.__class__ == Attribute:
+            key = attribute.typeCode
+        else:
+            key = attribute.__class__
+            
+        if key in self:
             # Attribute was already present
             raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
         else:
-            super(AttributeDict, self).__setitem__(attribute.__class__, attribute)
+            super(AttributeDict, self).__setitem__(key, attribute)
     
     add = _add
     
@@ -1722,8 +1727,8 @@ class BGP(protocol.Protocol):
                 self.fsm.updateError(e.suberror, (e.data[2] and self.encodeAttribute(e.data) or chr(e.data[1])))
             else:
                 self.fsm.updateError(e.suberror)
-        
-        self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
+        else:
+            self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
 
     def keepAliveReceived(self):
         """Called when a BGP KeepAlive message was received.
