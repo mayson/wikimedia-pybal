@@ -676,6 +676,7 @@ class BaseMPAttribute(Attribute):
         if not attrTuple:
             self.optional = True
             self.transitive = False
+            self.extendedLength = True
             self.afi, self.safi = value[0:2]
 
     def _initFromTuple(self, attrTuple):
@@ -721,7 +722,8 @@ class MPReachNLRIAttribute(BaseMPAttribute):
     def __init__(self, value=None, attrTuple=None):
         super(MPReachNLRIAttribute, self).__init__(value=value, attrTuple=attrTuple)
 
-        self.value = value or (AFI_INET, SAFI_UNICAST, IPv4IP(), [])
+        if not attrTuple:
+            self.value = value or (AFI_INET6, SAFI_UNICAST, IPv6IP(), [])
     
     def _initFromTuple(self, attrTuple):
         super(MPReachNLRIAttribute, self)._initFromTuple(attrTuple)
@@ -747,8 +749,10 @@ class MPReachNLRIAttribute(BaseMPAttribute):
     def encode(self):
         afi, safi, nexthop, nlri = self.value
         pnh = nexthop.packed()
+        encodedNLRI = BGP.encodePrefixes(nlri)
+        length = 5 + len(pnh) + len(encodedNLRI)
 
-        return struct.pack('!BBHBB%dsB' % len(pnh), self.flags(), self.typeCode, afi, safi, len(pnh), pnh, 0) + BGP.encodePrefixes(nlri)
+        return struct.pack('!BBHHBB%dsB' % len(pnh), self.flags(), self.typeCode, length, afi, safi, len(pnh), pnh, 0) + encodedNLRI
 
     def __str__(self):
         return "%s %s NH %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
@@ -772,7 +776,8 @@ class MPUnreachNLRIAttribute(BaseMPAttribute):
     def __init__(self, value=None, attrTuple=None):
         super(MPUnreachNLRIAttribute, self).__init__(value=value, attrTuple=attrTuple)
 
-        self.value = value or (AFI_INET, SAFI_UNICAST, [])
+        if not attrTuple:
+            self.value = value or (AFI_INET6, SAFI_UNICAST, [])
     
     def _initFromTuple(self, attrTuple):
         super(MPUnreachNLRIAttribute, self)._initFromTuple(attrTuple)
@@ -785,8 +790,10 @@ class MPUnreachNLRIAttribute(BaseMPAttribute):
     
     def encode(self):
         afi, safi, nlri = self.value
+        encodedNLRI = BGP.encoddePrefixes(nlri)
+        length = 3 + len(encodedNLRI)
 
-        return struct.pack('!BBHB', self.flags(), self.typeCode, afi, safi) + BGP.encodePrefixes(nlri)
+        return struct.pack('!BBHHB', self.flags(), self.typeCode, length, afi, safi) + encodedNLRI
 
     def addPrefixes(self, prefixes):
         """
