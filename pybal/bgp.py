@@ -491,11 +491,7 @@ class BaseNextHopAttribute(Attribute):
     name = 'Next Hop'
     typeCode = ATTR_TYPE_NEXT_HOP
     
-    ANY = None
-
     def __init__(self, value=None, attrTuple=None):
-        self.any = False
-        
         super(BaseNextHopAttribute, self).__init__(attrTuple=attrTuple)
         
         if not attrTuple:
@@ -523,7 +519,6 @@ class BaseNextHopAttribute(Attribute):
             self.value = IPv4IP(value)
         else:
             self.value = IPv4IP('0.0.0.0')
-            self.any = True
 
 class NextHopAttribute(BaseNextHopAttribute):    
     set = BaseNextHopAttribute._set
@@ -901,11 +896,9 @@ class Advertisement(object):
     BGP attributes and optional extra information
     """
     
-    def __init__(self, prefix, attributes=None, addressfamily=(AFI_INET, SAFI_UNICAST)):
+    def __init__(self, prefix, attributes, addressfamily=(AFI_INET, SAFI_UNICAST)):
         self.prefix = prefix
-        self.attributes = attributes or AttributeDict([OriginAttribute(),
-                                                      ASPathAttribute(),
-                                                      NextHopAttribute(NextHopAttribute.ANY)])
+        self.attributes = attributes
         self.addressfamily = addressfamily
         
 class FSM(object):
