@@ -1459,7 +1459,9 @@ class BGP(protocol.Protocol):
         """Constructs a BGP Open message"""
 
         # Construct optional parameters
-        optParams = self.constructOpenOptionalParameters(self.constructCapabilities(self._capabilities()))
+        capabilities = self.constructCapabilities(self._capabilities())
+        optParams = self.constructOpenOptionalParameters(
+                parameters=(capabilities and [capabilities] or []))
         
         msg = struct.pack('!BHHI',
                           VERSION,
@@ -1504,11 +1506,13 @@ class BGP(protocol.Protocol):
     def constructCapabilities(self, capabilities):
         """Constructs a Capabilities optional parameter of a BGP Open message"""
         
-        caps = "".join([struct.pack('!BB', capCode, len(capValue)) + capValue
-                   for capCode, capValue
-                   in capabilities])
-        
-        return struct.pack('!BB', OPEN_PARAM_CAPABILITIES, len(caps)) + caps
+        if len(capabilities) > 0:        
+            caps = "".join([struct.pack('!BB', capCode, len(capValue)) + capValue
+                            for capCode, capValue
+                            in capabilities])
+            return struct.pack('!BB', OPEN_PARAM_CAPABILITIES, len(caps)) + caps
+        else:
+            return None
 
     def parseBuffer(self):
         """Parse received data in receiveBuffer"""
