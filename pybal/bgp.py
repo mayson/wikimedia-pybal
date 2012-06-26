@@ -753,7 +753,7 @@ class MPReachNLRIAttribute(BaseMPAttribute):
         return "%s %s NH %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
     
     def __hash__(self):
-        return hash(self.value[0:3]) ^ hash(frozenset(self.value[3]))
+        return hash((self.value[0:3] + (frozenset(self.value[3]), )))
 
     def addPrefixes(self, prefixes):
         """
