@@ -900,6 +900,9 @@ class Advertisement(object):
         self.prefix = prefix
         self.attributes = attributes
         self.addressfamily = addressfamily
+    
+    def __repr__(self):
+        return repr(self.__dict__)
         
 class FSM(object):
     class BGPTimer(object):
