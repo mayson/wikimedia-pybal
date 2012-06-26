@@ -176,7 +176,7 @@ class LVSService:
 
         self.ipvsManager.DryRun = configuration.getboolean('dryrun', False)
         
-        if self.configuration.getboolean('bgp', False) and ':' not in self.ip:
+        if self.configuration.getboolean('bgp', False):
             from pybal import BGPFailover
             # Add service ip to the BGP announcements
             BGPFailover.addPrefix(self.ip)
