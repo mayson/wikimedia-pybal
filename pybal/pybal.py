@@ -472,7 +472,10 @@ class Coordinator:
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
 
-    prefixes = set()
+    prefixes = {
+        (bgp.AFI_INET, bgp.SAFI_UNICAST): set(),
+        (bgp.AFI_INET6, bgp.SAFI_UNICAST): set()
+    }
     peerings = []
 
     def __init__(self, globalConfig):
@@ -488,13 +491,29 @@ class BGPFailover:
             
             asPath = [int(asn) for asn in self.globalConfig.get('bgp-as-path', str(self.bgpPeering.myASN)).split()]
             
-            advertisements = set()
-            for prefix in BGPFailover.prefixes:
-                attrSet = bgp.FrozenAttributeSet([bgp.OriginAttribute(),
-                                                  bgp.ASPathAttribute(asPath),
-                                                  bgp.NextHopAttribute(bgp.NextHopAttribute.ANY)])
-                advertisements.add(bgp.Advertisement(prefix, attrSet))
+            attributes = {}
+            try:                
+                attributes[(bgp.AFI_INET, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict([
+                    bgp.OriginAttribute(),
+                    bgp.ASPathAttribute(asPath),
+                    bgp.NextHopAttribute(self.globalConfig['bgp-nexthop-ipv4'])])
+            except KeyError:
+                raise ValueError("IPv4 BGP NextHop (global configuration variable 'bgp-nexthop-ipv4') not set")
             
+            try:
+                attributes[(bgp.AFI_INET6, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict([
+                    bgp.OriginAttribute(),
+                    bgp.ASPathAttribute(asPath),
+                    bgp.MPReachNLRIAttribute((bgp.AFI_INET6, bgp.SAFI_UNICAST,
+                                             bgp.IPv6IP(self.globalConfig['bgp-nexthop-ipv6']), []))])
+            except KeyError:
+                raise ValueError("IPv6 BGP NextHop (global configuration variable 'bgp-nexthop-ipv6') not set")
+
+            advertisements = set([bgp.Advertisement(prefix, attributes[af], af)
+                                  for af in attributes.keys()
+                                  for prefix in BGPFailover.prefixes[af]])
+            
+            self.bgpPeering.setEnabledAddressFamilies(set(attributes.keys()))
             self.bgpPeering.setAdvertisements(advertisements)
             self.bgpPeering.automaticStart()
         except Exception:
@@ -518,7 +537,10 @@ class BGPFailover:
     @classmethod
     def addPrefix(cls, prefix):
         try:
-            cls.prefixes.add(bgp.IPv4IP(prefix)) # FIXME: IPv6
+            if ':' not in prefix: 
+                cls.prefixes[(bgp.AFI_INET, bgp.SAFI_UNICAST)].add(bgp.IPv4IP(prefix))
+            else:
+                cls.prefixes[(bgp.AFI_INET6, bgp.SAFI_UNICAST)].add(bgp.IPv6IP(prefix))
         except NameError:
             # bgp not imported
             pass

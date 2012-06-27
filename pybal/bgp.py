@@ -3,6 +3,11 @@
 
 """
 A (partial) implementation of the BGP 4 protocol (RFC4271).
+
+Supported features:
+
+- RFC 3392 (Capabilities Advertisement with BGP-4) [rudimentary]
+- RFC 4760 (Multi-protocol Extensions for BGP-4)
 """
 
 # System imports
@@ -86,7 +91,27 @@ ATTR_TYPE_ATOMIC_AGGREGATE = 6
 ATTR_TYPE_AGGREGATOR = 7
 ATTR_TYPE_COMMUNITY = 8
 
+# RFC4760 attribute types
+ATTR_TYPE_MP_REACH_NLRI = 14
+ATTR_TYPE_MP_UNREACH_NLRI = 15
+
 ATTR_TYPE_INT_LAST_UPDATE = 256 + 1
+
+# BGP Open optional parameter codes
+OPEN_PARAM_CAPABILITIES = 2
+
+# BGP Capability codes
+CAP_MP_EXT = 1
+CAP_ROUTE_REFRESH = 2
+CAP_ORF = 3
+
+AFI_INET = 1
+AFI_INET6 = 2
+SUPPORTED_AFI = [AFI_INET, AFI_INET6]
+
+SAFI_UNICAST = 1
+SAFI_MULTICAST = 2
+SUPPORTED_SAFI = [SAFI_UNICAST, SAFI_MULTICAST]
 
 # Exception classes
 
@@ -101,6 +126,9 @@ class NotificationSent(BGPException):
         self.error = error
         self.suberror = suberror
         self.data = data
+    
+    def __str__(self):
+        return repr((self.error, self.suberror, self.data))
 
 class BadMessageLength(BGPException):
     pass
@@ -146,41 +174,67 @@ class IBGPPeering(Interface):
         be initiated.
         """
 
+# TODO: Replace by some better third party classes or rewrite
 class IPPrefix(object):
     """Class that represents an IP prefix"""
     
-    def __init__(self, ipprefix):
+    def __init__(self, ipprefix, addressfamily=None):
         self.prefix = None # packed ip string
         
         if isinstance(ipprefix, IPPrefix):
-            self.prefix, self.prefixlen = ipprefix.prefix, ipprefix.prefixlen
+            self.prefix, self.prefixlen, self.addressfamily = ipprefix.prefix, ipprefix.prefixlen, ipprefix.addressfamily
         elif type(ipprefix) is tuple:
+            # address family must be specified
+            if not addressfamily:
+                raise ValueError()
+            
+            self.addressfamily = addressfamily
+
             prefix, self.prefixlen = ipprefix
             if type(prefix) is str:
                 # tuple (ipstr, prefixlen)
                 self.prefix = prefix
             elif type(prefix) is int:
-                # tuple (ipint, prefixlen)
-                self.prefix = struct.pack('!I', prefix)
+                if self.addressfamily == AFI_INET:
+                    # tuple (ipint, prefixlen)
+                    self.prefix = struct.pack('!I', prefix)
+                else:
+                    raise ValueError()
             else:
                 # Assume prefix is a sequence of octets
                 self.prefix = "".join(map(chr, prefix))
         elif type(ipprefix) is str:
             # textual form
             prefix, prefixlen = ipprefix.split('/')
-            self.prefix = "".join([chr(int(o)) for o in prefix.split('.')])
+            self.addressfamily = addressfamily or (':' in prefix and AFI_INET6 or AFI_INET)
+
+            if self.addressfamily == AFI_INET:
+                self.prefix = "".join([chr(int(o)) for o in prefix.split('.')])
+            elif self.addressfamily == AFI_INET6:
+                self.prefix = ""
+                hexlist = prefix.split(":")
+                if len(hexlist) > 8:
+                    raise ValueError()
+
+                for hexstr in hexlist:
+                    if hexstr is not "":
+                        self.prefix += struct.pack('!H', int(hexstr, 16))
+                    else:
+                        zeroCount = 8 - len(hexlist) + 1
+                        self.prefix += struct.pack('!%dH' % zeroCount, *((0,) * zeroCount))  
+                
             self.prefixlen = int(prefixlen)
-            # TODO: IPv6
         else:
-            raise ValueError
+            raise ValueError()
     
     def __repr__(self):
         return repr(str(self))
-        # TODO: IPv6
     
     def __str__(self):
-        prefix = self.prefix +  ('\0\0\0\0'[:4-len(self.prefix)])
-        return ".".join([str(ord(o)) for o in prefix]) + '/%d' % self.prefixlen
+        if self.addressfamily == AFI_INET:
+            return '.'.join([str(ord(o)) for o in self.packed(pad=True)]) + '/%d' % self.prefixlen
+        elif self.addressfamily == AFI_INET6:
+            return ':'.join([hex(o)[2:] for o in struct.unpack('!8H', self.packed(pad=True))]) + '/%d' % self.prefixlen       
     
     def __eq__(self, other):
         # FIXME: masked ips
@@ -209,6 +263,9 @@ class IPPrefix(object):
     def __len__(self):
         return self.prefixlen
 
+    def _packedMaxLen(self):
+        return (self.addressfamily == AFI_INET6 and 16 or 4)
+    
     def ipToInt(self):
         return reduce(lambda x, y: x * 256 + y, map(ord, self.prefix))
 
@@ -217,27 +274,45 @@ class IPPrefix(object):
 
     def mask(self, prefixlen, shorten=False):
         # DEBUG
-        assert len(self.prefix) == 4
+        assert len(self.prefix) == self._packedMaxLen()
         
         masklen = len(self.prefix) * 8 - prefixlen
         self.prefix = struct.pack('!I', self.ipToInt() >> masklen << masklen)
         if shorten: self.prefixlen = prefixlen
         return self
     
-    def packed(self):
-        return self.prefix
+    def packed(self, pad=False):
+        if pad:
+            return self.prefix + '\0' * (self._packedMaxLen() - len(self.prefix))
+        else:
+            return self.prefix
 
 class IPv4IP(IPPrefix):
     """Class that represents a single non-prefix IPv4 IP."""
     
     def __init__(self, ip):
         if type(ip) is str and len(ip) > 4:
-            super(IPv4IP, self).__init__(ip + '/32')
+            super(IPv4IP, self).__init__(ip + '/32', AFI_INET)
         else:
-            super(IPv4IP, self).__init__((ip, 32))
+            super(IPv4IP, self).__init__((ip, 32), AFI_INET)
 
     def __str__(self):
         return ".".join([str(ord(o)) for o in self.prefix])
+
+class IPv6IP(IPPrefix):
+    """Class that represents a single non-prefix IPv6 IP."""
+    
+    def __init__(self, ip=None, packed=None):
+        if not ip and not packed:
+            raise ValueError()
+        
+        if packed:
+            super(IPv6IP, self).__init__((packed, 128), AFI_INET6)
+        else:    
+            super(IPv6IP, self).__init__(ip + '/128', AFI_INET6)
+
+    def __str__(self):
+        return ':'.join([hex(o)[2:] for o in struct.unpack('!8H', self.packed(pad=True))])  
 
 class Attribute(object):
     """
@@ -277,6 +352,8 @@ class Attribute(object):
                 elif not self.optional:
                     raise AttributeException(ERR_MSG_UPDATE_UNRECOGNIZED_WELLKNOWN_ATTR, attrTuple)
             
+            self._initFromTuple(attrTuple)
+
         self.type = self.__class__
     
     def __eq__(self, other):
@@ -286,11 +363,14 @@ class Attribute(object):
     def __ne__(self, other):
         return not self.__eq__(other)
     
+    def __hash__(self):
+        return hash(self.tuple())
+    
     def __repr__(self):
         return repr(self.tuple())
     
     def __str__(self):
-        return str(self.value)
+        return self.__repr__()
     
     def flagsStr(self):
         """Returns a string with characters symbolizing the flags
@@ -310,6 +390,9 @@ class Attribute(object):
     
     def tuple(self):
         return (self.flags(), self.typeCode, self.value)       
+
+    def _initFromTuple(self, attrTuple):
+        pass
     
     @classmethod
     def fromTuple(cls, attrTuple):
@@ -317,12 +400,12 @@ class Attribute(object):
         given attribute tuple.
         """
 
-        return cls.typeToClass.get(attrTuple[1], cls)(attrTuple)
+        return cls.typeToClass.get(attrTuple[1], cls)(attrTuple=attrTuple)
     
     def encode(self):
         return BGP.encodeAttribute(self.flags(), self.typeCode, self.value)
 
-class OriginAttribute(Attribute):
+class BaseOriginAttribute(Attribute):
     name = 'Origin'
     typeCode = ATTR_TYPE_ORIGIN
     
@@ -330,17 +413,15 @@ class OriginAttribute(Attribute):
     ORIGIN_EGP = 1
     ORIGIN_INCOMPLETE = 2
 
-    def __init__(self, value=None):        
-        if type(value) is tuple:
-            super(OriginAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(OriginAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):        
+        super(BaseOriginAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = False
             self.transitive = True
             self.value = value or self.ORIGIN_IGP
 
-    def fromTuple(self, attrTuple):        
+    def _initFromTuple(self, attrTuple):        
         value = attrTuple[2]
         
         if self.optional or not self.transitive:
@@ -354,17 +435,17 @@ class OriginAttribute(Attribute):
     
     def encode(self):
         return struct.pack('!BBBB', self.flags(), self.typeCode, 1, self.value)
+
+class OriginAttribute(BaseOriginAttribute): pass
             
-class ASPathAttribute(Attribute):
+class BaseASPathAttribute(Attribute):
     name = 'AS Path'
     typeCode = ATTR_TYPE_AS_PATH
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(ASPathAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(ASPathAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(BaseASPathAttribute, self).__init__(attrTuple=attrTuple)
+
+        if not attrTuple:
             self.optional = False
             self.transitive = True
             
@@ -373,7 +454,7 @@ class ASPathAttribute(Attribute):
                 value = [(2, value)]
             self.value = value or [(2, [])] # One segment with one AS path sequence
     
-    def fromTuple(self, attrTuple):
+    def _initFromTuple(self, attrTuple):
         value = attrTuple[2]
 
         if self.optional or not self.transitive:
@@ -400,26 +481,25 @@ class ASPathAttribute(Attribute):
 
     def __str__(self):
         return " ".join([" ".join([str(asn) for asn in path]) for type, path in self.value])
+    
+    def __hash__(self):
+        return hash(tuple([(segtype, tuple(path)) for segtype, path in self.value]))
+
+class ASPathAttribute(BaseASPathAttribute): pass
         
-class NextHopAttribute(Attribute):
+class BaseNextHopAttribute(Attribute):
     name = 'Next Hop'
     typeCode = ATTR_TYPE_NEXT_HOP
     
-    ANY = None
-
-    def __init__(self, value=None):
-        self.any = False
+    def __init__(self, value=None, attrTuple=None):
+        super(BaseNextHopAttribute, self).__init__(attrTuple=attrTuple)
         
-        if type(value) is tuple:
-            super(NextHopAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(NextHopAttribute, self).__init__(None)
+        if not attrTuple:
             self.optional = False
             self.transitive = True
             self._set(value)
 
-    def fromTuple(self, attrTuple):      
+    def _initFromTuple(self, attrTuple):      
         value = attrTuple[2]
         
         if self.optional or not self.transitive:
@@ -427,7 +507,7 @@ class NextHopAttribute(Attribute):
         if len(value) != 4:
             raise AttributeException(ERR_MSG_UPDATE_ATTR_LEN, attrTuple)        
         
-        self.set(value)
+        self._set(value)
     
     def encode(self):
         return struct.pack('!BBB', self.flags(), self.typeCode, len(self.value.packed())) + self.value.packed()
@@ -435,30 +515,27 @@ class NextHopAttribute(Attribute):
     def _set(self, value):
         if value:
             if value in (0, 2**32-1):
-                raise AttributeException(ERR_MSG_UPDATE_INVALID_NEXTHOP, attrTuple)
+                raise AttributeException(ERR_MSG_UPDATE_INVALID_NEXTHOP)
             self.value = IPv4IP(value)
         else:
             self.value = IPv4IP('0.0.0.0')
-            self.any = True
-    
-    # FIXME: Remove this method (violates immutability) and make AttributeSet changes more convenient
-    set = _set
 
-class MEDAttribute(Attribute):
+class NextHopAttribute(BaseNextHopAttribute):    
+    set = BaseNextHopAttribute._set
+
+class BaseMEDAttribute(Attribute):
     name = 'MED'
     typeCode = ATTR_TYPE_MULTI_EXIT_DISC
 
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(MEDAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(MEDAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(BaseMEDAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = False
             self.value = value or 0
 
-    def fromTuple(self, attrTuple):       
+    def _initFromTuple(self, attrTuple):       
         value = attrTuple[2]
         
         if not self.optional or self.transitive:
@@ -470,22 +547,22 @@ class MEDAttribute(Attribute):
     
     def encode(self):
         return struct.pack('!BBBI', self.flags(), self.typeCode, 4, self.value)
+
+class MEDAttribute(BaseMEDAttribute): pass
         
-class LocalPrefAttribute(Attribute):
+class BaseLocalPrefAttribute(Attribute):
     name = 'Local Pref'
     typeCode = ATTR_TYPE_LOCAL_PREF
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(LocalPrefAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(LocalPrefAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(BaseLocalPrefAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = False
             self.value = value or 0
     
-    def fromTuple(self, attrTuple):       
+    def _initFromTuple(self, attrTuple):       
         value = attrTuple[2]
         
         if not self.optional or self.transitive:
@@ -497,21 +574,21 @@ class LocalPrefAttribute(Attribute):
     
     def encode(self):
         return struct.pack('!BBBI', self.flags(), self.typeCode, 4, self.value)
+
+class LocalPrefAttribute(BaseLocalPrefAttribute): pass
     
-class AtomicAggregateAttribute(Attribute):
+class BaseAtomicAggregateAttribute(Attribute):
     name = 'Atomic Aggregate'
     typeCode = ATTR_TYPE_ATOMIC_AGGREGATE
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(AtomicAggregateAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(AtomicAggregateAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(BaseAtomicAggregateAttribute, self).__init__(attrTuple=attrTuple)
+
+        if not attrTuple:
             self.optional = False
             self.value = None
     
-    def fromTuple(self, attrTuple):        
+    def _initFromTuple(self, attrTuple):        
         if self.optional:
             raise AttributeException(ERR_MSG_UPDATE_ATTR_FLAGS, attrTuple)
         if len(attrTuple[2]) != 0:
@@ -520,21 +597,21 @@ class AtomicAggregateAttribute(Attribute):
     def encode(self):
         return struct.pack('!BBB', self.flags(), self.typeCode, 0)
 
-class AggregatorAttribute(Attribute):
+class AtomicAggregateAttribute(BaseAtomicAggregateAttribute): pass
+
+class BaseAggregatorAttribute(Attribute):
     name = 'Aggregator'
     typeCode = ATTR_TYPE_AGGREGATOR
 
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(AggregatorAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(AggregatorAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(BaseAggregatorAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = True
             self.value = value or (0, IPv4IP('0.0.0.0')) # TODO: IPv6
 
-    def fromTuple(self, attrTuple):       
+    def _initFromTuple(self, attrTuple):       
         value = attrTuple[2]
 
         if not self.optional or not self.transitive:
@@ -549,21 +626,21 @@ class AggregatorAttribute(Attribute):
     def encode(self):
         return struct.pack('!BBBH', self.flags(), self.typeCode, 6, self.value[0]) + self.value[1].packed()
 
-class CommunityAttribute(Attribute):
+class AggregatorAttribute(BaseAggregatorAttribute): pass
+
+class BaseCommunityAttribute(Attribute):
     name = 'Community'
     typeCode = ATTR_TYPE_COMMUNITY
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(CommunityAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(CommunityAttribute, self).__init__(None)
+    def __init__(self, value=None, attrTuple=None):
+        super(BaseCommunityAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
             self.optional = True
             self.transitive = True
             self.value = value or []
     
-    def fromTuple(self, attrTuple):
+    def _initFromTuple(self, attrTuple):
         value = attrTuple[2]
         
         if not self.optional or not self.transitive:
@@ -579,20 +656,155 @@ class CommunityAttribute(Attribute):
     
     def __str__(self):
         return str(["%d:%d" % (c / 2**16, c % 2**16) for c in self.value])
+    
+    def __hash__(self):
+        return hash(tuple(self.value))
+
+class CommunityAttribute(BaseCommunityAttribute): pass
+
+# RFC4760 attributes
+
+class BaseMPAttribute(Attribute):
+    def __init__(self, value=(AFI_INET, SAFI_UNICAST), attrTuple=None):
+        super(BaseMPAttribute, self).__init__(attrTuple=attrTuple)
+        
+        if not attrTuple:
+            self.optional = True
+            self.transitive = False
+            self.extendedLength = True
+            self.afi, self.safi = value[0:2]
+
+    def _initFromTuple(self, attrTuple):
+        if not self.optional or self.transitive:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+    
+    def _unpackAFI(self, attrTuple):
+        try:
+            self.afi, self.safi = struct.unpack('!HB', attrTuple[2][:3])
+        except struct.error:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        else:
+            if self.afi not in SUPPORTED_AFI or self.safi not in SUPPORTED_SAFI:
+                raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+    
+    def _parseNLRI(self, attrTuple, value):
+        try:
+            return BGP.parseEncodedPrefixList(value, self.afi)
+        except BGPException:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+    
+    @staticmethod
+    def afiStr(afi, safi):
+        return ({
+                 AFI_INET:   "inet",
+                 AFI_INET6:  "inet6"
+            }[afi],
+            {
+                 SAFI_UNICAST:   "unicast",
+                 SAFI_MULTICAST: "multicast"
+            }[safi])
+    
+    def __str__(self):
+        return "%s %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + (self.value[2], ))
+
+class MPReachNLRIAttribute(BaseMPAttribute):
+    name = 'MP Reach NLRI'
+    typeCode = ATTR_TYPE_MP_REACH_NLRI
+    
+    # Tuple encoding of self.value:
+    # (AFI, SAFI, NH, [NLRI])
+    
+    def __init__(self, value=None, attrTuple=None):
+        super(MPReachNLRIAttribute, self).__init__(value=value, attrTuple=attrTuple)
+
+        if not attrTuple:
+            self.value = value or (AFI_INET6, SAFI_UNICAST, IPv6IP(), [])
+    
+    def _initFromTuple(self, attrTuple):
+        super(MPReachNLRIAttribute, self)._initFromTuple(attrTuple)
+        
+        self._unpackAFI(attrTuple)
+
+        value = attrTuple[2]
+        try:
+            nhlen = struct.unpack('!B', value[3])[0]
+            pnh = struct.unpack('!%ds' % nhlen, value[4:4+nhlen])[0]
+        except struct.error:
+            raise AttributeException(ERR_MSG_UPDATE_OPTIONAL_ATTR, attrTuple)
+        
+        if self.afi == AFI_INET:
+            nexthop = IPv4IP(packed=pnh)
+        elif self.afi == AFI_INET6:
+            nexthop = IPv6IP(packed=pnh)
+
+        nlri = self._parseNLRI(attrTuple, value[5+nhlen:])
+        
+        self.value = (self.afi, self.safi, nexthop, nlri)
+    
+    def encode(self):
+        afi, safi, nexthop, nlri = self.value
+        pnh = nexthop.packed()
+        encodedNLRI = BGP.encodePrefixes(nlri)
+        length = 5 + len(pnh) + len(encodedNLRI)
+
+        return struct.pack('!BBHHBB%dsB' % len(pnh), self.flags(), self.typeCode, length, afi, safi, len(pnh), pnh, 0) + encodedNLRI
+
+    def __str__(self):
+        return "%s %s NH %s NLRI %s" % (BaseMPAttribute.afiStr(self.afi, self.safi) + self.value[2:4])
+    
+    def __hash__(self):
+        return hash((self.value[0:3] + (frozenset(self.value[3]), )))
+
+    def addPrefixes(self, prefixes):
+        """
+        Adds a (copied) list of prefixes to this attribute's NLRI
+        """
+        self.value = self.value[0:3] + (list(prefixes), )
+
+class MPUnreachNLRIAttribute(BaseMPAttribute):
+    name = 'MP Unreach NLRI'
+    typeCode = ATTR_TYPE_MP_UNREACH_NLRI
+    
+    # Tuple encoding of self.value:
+    # (AFI, SAFI, [NLRI])
+    
+    def __init__(self, value=None, attrTuple=None):
+        super(MPUnreachNLRIAttribute, self).__init__(value=value, attrTuple=attrTuple)
+
+        if not attrTuple:
+            self.value = value or (AFI_INET6, SAFI_UNICAST, [])
+    
+    def _initFromTuple(self, attrTuple):
+        super(MPUnreachNLRIAttribute, self)._initFromTuple(attrTuple)
+
+        self._unpackAFI(attrTuple)
+
+        nlri = self._parseNLRI(attrTuple, attrTuple[2][3:])
+        
+        self.value = (self.afi, self.safi, nlri)
+    
+    def encode(self):
+        afi, safi, nlri = self.value
+        encodedNLRI = BGP.encoddePrefixes(nlri)
+        length = 3 + len(encodedNLRI)
+
+        return struct.pack('!BBHHB', self.flags(), self.typeCode, length, afi, safi) + encodedNLRI
+
+    def addPrefixes(self, prefixes):
+        """
+        Adds a (copied) list of prefixes to this attribute's NLRI
+        """
+        self.value = self.value[0:2] + (list(prefixes), )
+
+    def __hash__(self):
+        return hash(self.value[0:2]) ^ hash(frozenset(self.value[2]))
+
 
 class LastUpdateIntAttribute(Attribute):
     name = 'Last Update'
     typeCode = ATTR_TYPE_INT_LAST_UPDATE
     
-    def __init__(self, value=None):
-        if type(value) is tuple:
-            super(LastUpdateIntAttribute, self).__init__(value)
-            self.fromTuple(value)
-        else:
-            super(LastUpdateIntAttribute, self).__init__(None)
-            self.value = value        
-    
-    def fromTuple(self, attrTuple):
+    def _initFromTuple(self, attrTuple):
         self.value = attrTuple[2]
     
 Attribute.typeToClass = {
@@ -605,71 +817,78 @@ Attribute.typeToClass = {
     ATTR_TYPE_AGGREGATOR:        AggregatorAttribute,
     ATTR_TYPE_COMMUNITY:         CommunityAttribute,
     
+    ATTR_TYPE_MP_REACH_NLRI:     MPReachNLRIAttribute,
+    ATTR_TYPE_MP_UNREACH_NLRI:   MPUnreachNLRIAttribute,
+    
     ATTR_TYPE_INT_LAST_UPDATE:   LastUpdateIntAttribute
 }
 
-class BaseAttributeSet():
-    """Base class for FrozenAttributeSet and AttributeSet"""
 
-    def _init(self, attributes):
+class AttributeDict(dict):
+    def __init__(self, attributes, checkMissing=False):
         """
-        Expects a sequence of either unparsed attribute tuples, or parsed
-        Attribute inheritors.
+        Expects another AttributeDict object, or a sequence of
+        either unparsed attribute tuples, or parsed Attribute inheritors.
         """
 
-        self.origin, self.asPath, self.nextHop = None, None, None
+        if isinstance(attributes, AttributeDict):
+            return dict.__init__(self, attributes)
 
-        workSet = set()
-        for attr in attributes:
-            if type(attr) is tuple:
-                self._add(Attribute.fromTuple(attr), workSet)
+        dict.__init__(self)
+    
+        for attr in iter(attributes):
+            if isinstance(attr, tuple):
+                self._add(Attribute.fromTuple(attr))
             elif isinstance(attr, Attribute):
-                self._add(attr, workSet)
+                self._add(attr)
             else:
-                raise AttributeError(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
-        
-        # Check whether all mandatory well-known attributes are present
-        for attr, typeCode in [(self.origin, ATTR_TYPE_ORIGIN),
-                               (self.asPath, ATTR_TYPE_AS_PATH),
-                               (self.nextHop, ATTR_TYPE_NEXT_HOP)]:
-            if attr is None:
-                raise AttributeError(ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR, (0, typeCode, None))
+                raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
+            
+        if checkMissing:
+            # Check whether all mandatory well-known attributes are present
+            for attr in [OriginAttribute, ASPathAttribute, NextHopAttribute]:
+                if attr not in self:
+                    raise AttributeException(ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR,
+                                             (0, attr.typeCode, None))
 
-        return workSet
 
-    def _add(self, attr, workSet):
-        """Adds attribute attr to the set, raises AttributeError if already present"""
-        
-        try:
-            workSet.add(attr)
-        except KeyError:
-            # Attribute was already present
-            raise AttributeError(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
+    def _add(self, attribute):
+        """Adds attribute attr to the dict, raises AttributeException if already present"""
+
+        if attribute.__class__ == Attribute:
+            key = attribute.typeCode
         else:
-            # Add direct references for the mandatory well-known attributes
-            if type(attr) is OriginAttribute:
-                self.origin = attr
-            elif type(attr) is ASPathAttribute:
-                self.asPath = attr
-            elif type(attr) is NextHopAttribute:
-                self.nextHop = attr
-        
-class FrozenAttributeSet(BaseAttributeSet, frozenset):
-    """Class that contains a single set of attributes attached to a list of NLRIs"""
-
-    def __init__(self, attributes):
-        super(FrozenAttributeSet, self).__init__(self._init(attributes))
-
-class AttributeSet(BaseAttributeSet, set):
-    """Mutable variant of FrozenAttributeSet"""
-
-    def __init__(self, attributes):
-        super(AttributeSet, self).__init__(self._init(attributes))
-
-    def add(self, attr):
-        self._add(attr, self)
-        
-    # FIXME: check/implement other set methods
+            key = attribute.__class__
+            
+        if key in self:
+            # Attribute was already present
+            raise AttributeException(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
+        else:
+            super(AttributeDict, self).__setitem__(key, attribute)
+    
+    add = _add
+    
+    def __str__(self):
+        return "{%s}" % ", ".join(["%s: %s" % (attrType.__name__, str(attr)) for attrType, attr in self.iteritems()])
+    
+class FrozenAttributeDict(AttributeDict):
+    __delitem__ = None
+    __setitem__ = None
+    clear = None
+    fromkeys = None
+    pop = None
+    popitem = None
+    setdefault = None
+    update = None
+    add = None
+    
+    
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+    
+    def __hash__(self):
+        import operator
+        return reduce(operator.xor, map(hash, self.itervalues()), 0)
 
 class Advertisement(object):
     """
@@ -677,11 +896,13 @@ class Advertisement(object):
     BGP attributes and optional extra information
     """
     
-    def __init__(self, prefix, attributes=None):
+    def __init__(self, prefix, attributes, addressfamily=(AFI_INET, SAFI_UNICAST)):
         self.prefix = prefix
-        self.attributes = attributes or AttributeSet([OriginAttribute(),
-                                                      ASPathAttribute(),
-                                                      NextHopAttribute(NextHopAttribute.ANY)])
+        self.attributes = attributes
+        self.addressfamily = addressfamily
+    
+    def __repr__(self):
+        return repr(self.__dict__)
         
 class FSM(object):
     class BGPTimer(object):
@@ -1153,7 +1374,7 @@ class BGP(protocol.Protocol):
         # Set the local BGP id from the local IP address if it's not set
         if self.factory.bgpId is None:
             self.factory.bgpId = IPv4IP(self.transport.getHost().host).ipToInt()  # FIXME: IPv6
-        
+
         try:
             self.fsm.connectionMade()
         except NotificationSent, e:
@@ -1239,15 +1460,17 @@ class BGP(protocol.Protocol):
     
     def constructOpen(self):
         """Constructs a BGP Open message"""
+
+        # Construct optional parameters
+        capabilities = self.constructCapabilities(self._capabilities())
+        optParams = self.constructOpenOptionalParameters(
+                parameters=(capabilities and [capabilities] or []))
         
-        msg = struct.pack('!BHHIB',
+        msg = struct.pack('!BHHI',
                           VERSION,
                           self.factory.myASN,
                           self.fsm.holdTime,
-                          self.factory.bgpId,
-                          0)
-        
-        # TODO: support optional parameters
+                          self.factory.bgpId) + optParams
         
         return self.constructHeader(msg, MSG_OPEN)
 
@@ -1276,6 +1499,23 @@ class BGP(protocol.Protocol):
         
         msg = struct.pack('!BB', error, suberror) + data
         return self.constructHeader(msg, MSG_NOTIFICATION)
+    
+    def constructOpenOptionalParameters(self, parameters):
+        """Constructs the OptionalParameters fields of a BGP Open message"""
+        
+        params = "".join(parameters)
+        return struct.pack('!B', len(params)) + params
+    
+    def constructCapabilities(self, capabilities):
+        """Constructs a Capabilities optional parameter of a BGP Open message"""
+        
+        if len(capabilities) > 0:        
+            caps = "".join([struct.pack('!BB', capCode, len(capValue)) + capValue
+                            for capCode, capValue
+                            in capabilities])
+            return struct.pack('!BB', OPEN_PARAM_CAPABILITIES, len(caps)) + caps
+        else:
+            return None
 
     def parseBuffer(self):
         """Parse received data in receiveBuffer"""
@@ -1376,8 +1616,11 @@ class BGP(protocol.Protocol):
             # RFC4271 dictates that we send ERR_MSG_UPDATE Malformed Attribute List
             # in this case
             self.fsm.updateError(ERR_MSG_UPDATE_MALFORMED_ATTR_LIST)
-
-        return withdrawnPrefixes, attributes, nlri
+            
+            # updateError may have raised an exception. If not, we'll do it here.
+            raise
+        else:
+            return withdrawnPrefixes, attributes, nlri
     
     def parseKeepAlive(self, message):
         """Parses a BGP KeepAlive message"""
@@ -1414,21 +1657,15 @@ class BGP(protocol.Protocol):
     def updateReceived(self, withdrawnPrefixes, attributes, nlri):
         """Called when a BGP Update message was received."""
         
-        if len(nlri) > 0:
-            try:
-                attrSet = AttributeSet(attributes)
-            except AttributeException, e:
-                if e.suberror in (ERR_MSG_UPDATE_UNRECOGNIZED_WELLKNOWN_ATTR,
-                                  ERR_MSG_UPDATE_MISSING_WELLKNOWN_ATTR):
-                    # e.data is a typecode
-                    self.fsm.updateError(e.suberror, chr(e.data))
-                else:
-                    # e.data is an attribute tuple
-                    self.fsm.updateError(e.suberror, self.encodeAttribute(e.data))
+        try:
+            attrSet = AttributeDict(attributes, checkMissing=(len(nlri)>0))
+        except AttributeException, e:
+            if type(e.data) is tuple:
+                self.fsm.updateError(e.suberror, (e.data[2] and self.encodeAttribute(e.data) or chr(e.data[1])))
+            else:
+                self.fsm.updateError(e.suberror)
         else:
-            attrSet = set()
-            
-        self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
+            self.fsm.updateReceived((withdrawnPrefixes, attrSet, nlri))
 
     def keepAliveReceived(self):
         """Called when a BGP KeepAlive message was received.
@@ -1469,17 +1706,27 @@ class BGP(protocol.Protocol):
         and False otherwise."""
         
         return (self.transport.getPeer().port == PORT)
+    
+    
+    def _capabilities(self):
+        # Determine capabilities
+        capabilities = []
+        for afi, safi in list(self.factory.addressFamilies):
+            capabilities.append((CAP_MP_EXT, struct.pack('!HBB', afi, 0, safi)))
+        
+        return capabilities
 
     @staticmethod
-    def parseEncodedPrefixList(data):
+    def parseEncodedPrefixList(data, addressFamily=AFI_INET):
         """Parses an RFC4271 encoded blob of BGP prefixes into a list"""
         
         prefixes = []
         postfix = data
         while len(postfix) > 0:
             prefixLen = ord(postfix[0])
-            if prefixLen > 32:
-                raise BGPError(ERR_MSG_UPDATE, ERR_MSG_UPDATE_INVALID_NETWORK_FIELD)
+            if (addressFamily == AFI_INET and prefixLen > 32
+                ) or (addressFamily == AFI_INET6 and prefixLen > 128):
+                raise BGPException(ERR_MSG_UPDATE, ERR_MSG_UPDATE_INVALID_NETWORK_FIELD)
             
             octetLen, remainder = prefixLen / 8, prefixLen % 8
             if remainder > 0:
@@ -1492,7 +1739,7 @@ class BGP(protocol.Protocol):
             if remainder > 0:
                 prefixData[-1] = prefixData[-1] & (255 << (8-remainder))
                 
-            prefixes.append(IPPrefix((prefixData, prefixLen)))
+            prefixes.append(IPPrefix((prefixData, prefixLen), addressFamily))
             
             # Next prefix
             postfix = postfix[octetLen+1:]
@@ -1539,7 +1786,7 @@ class BGP(protocol.Protocol):
         """Encodes a set of attributes"""
         
         attrData = ""
-        for attr in attributes:
+        for attr in attributes.itervalues():
             if isinstance(attr, Attribute):
                 attrData += attr.encode()
             else:
@@ -1624,6 +1871,7 @@ class BGPPeering(BGPFactory):
         self.peerAddr = peerAddr
         self.peerId = None
         self.fsm = BGPFactory.FSM(self)
+        self.addressFamilies = set(( AFI_INET, SAFI_UNICAST ))
         self.inConnections = []
         self.outConnections = []
         self.estabProtocol = None    # reference to the BGPProtocol instance in ESTAB state
@@ -1813,7 +2061,7 @@ class BGPPeering(BGPFactory):
             # the ids of current and/or previous sessions. Close all
             # connections.
             self.peerId = None
-            for c in inConnections + outConnections:
+            for c in self.inConnections + self.outConnections:
                 try:
                     c.fsm.openCollisionDump()
                 except NotificationSent, e:
@@ -1846,9 +2094,9 @@ class BGPPeering(BGPFactory):
         # Break the tie
         assert self.bgpId != protocol.peerId
         if self.bgpId < protocol.peerId:
-            dumpList = outConnections
+            dumpList = self.outConnections
         elif self.bgpId > protocol.peerId:
-            dumpList = inConnections
+            dumpList = self.inConnections
 
         for c in dumpList:
             try:
@@ -1903,6 +2151,17 @@ class BGPPeering(BGPFactory):
         """Called when the BGP session is established, and announcements can be sent."""
         pass
 
+    def setEnabledAddressFamilies(self, addressFamilies):
+        """
+        Expects a dict with address families to be enabled,
+        containing iterables with Sub-AFIs
+        """
+        
+        for afi, safi in list(addressFamilies):
+            if afi not in SUPPORTED_AFI or safi not in SUPPORTED_SAFI:
+                raise ValueError("Address family (%d, %d) not supported" % (afi, safi))
+        
+        self.addressFamilies = addressFamilies
 
 class NaiveBGPPeering(BGPPeering):
     """
@@ -1914,8 +2173,9 @@ class NaiveBGPPeering(BGPPeering):
     def __init__(self, myASN=None, peerAddr=None):
         BGPPeering.__init__(self, myASN, peerAddr)
         
-        self.advertised = set()
-        self.toAdvertise = set()
+        # Dicts of sets per (AFI, SAFI) combination
+        self.advertised = {}
+        self.toAdvertise = {}
     
     def completeInit(self, protocol):
         """
@@ -1925,7 +2185,7 @@ class NaiveBGPPeering(BGPPeering):
         BGPPeering.completeInit(self, protocol)
         
         # (Re)init the existing set, they may get reused
-        self.advertised = set()
+        self.advertised = {}
     
     def sendAdvertisements(self):
         """
@@ -1939,19 +2199,33 @@ class NaiveBGPPeering(BGPPeering):
         """
         Takes a set of Advertisements that will be announced.
         """
-        
-        self.toAdvertise = set(advertisements)
-        
-        # Calculate changes
-        withdrawals = self.advertised - self.toAdvertise
-        updates = self.toAdvertise - self.advertised
+
+        self.toAdvertise = {}
+        for af in self.addressFamilies:
+            self.advertised.setdefault(af, set())
+            self.toAdvertise[af] = set([ad for ad in iter(advertisements) if ad.addressfamily == af])
         
         # Try to send
-        self._sendUpdates(withdrawals, updates)
+        self._sendUpdates(*self._calculateChanges())
+    
+    def _calculateChanges(self):
+        """Calculates the needed updates (for all address (sub)families)
+        between previous advertisements (self.advertised) and to be
+        advertised NLRI (in self.toAdvertise)
+        """
+        
+        withdrawals, updates = {}, {}
+        for af in set(self.advertised.keys() + self.toAdvertise.keys()):
+            withdrawals[af] = self.advertised[af] - self.toAdvertise[af]
+            updates[af] = self.toAdvertise[af] - self.advertised[af]
+
+        return withdrawals, updates
+        
     
     def _sendUpdates(self, withdrawals, updates):
         """
-        Takes a set of withdrawals and a set of updates, sorts them to
+        Takes a dict of sets of withdrawals and a dict of sets of
+        updates (both per (AFI, SAFI) combination), sorts them to
         equal attributes and sends the advertisements if possible.
         Assumes that self.toAdvertise reflects the advertised state
         after withdrawals and updates.
@@ -1961,22 +2235,68 @@ class NaiveBGPPeering(BGPPeering):
         if not self.estabProtocol or self.fsm.state != ST_ESTABLISHED:
             return
         
-        # Map equal attributes to advertisements
-        attributeMap = {}
-        for advertisement in updates:
-            attributeMap.setdefault(advertisement.attributes, set()).add(advertisement)
-    
-        # Send
-        for attributes, advertisementList in attributeMap.iteritems():
-            self._sendUpdate(withdrawals, attributes, advertisementList)
-            withdrawals = set()
- 
-        self.advertised = self.toAdvertise
+        # Process per (AFI, SAFI) pair
+        for af in set(withdrawals.keys() + updates.keys()):
+            # Map equal attributes to advertisements
+            attributeMap = {}
+            for advertisement in updates[af]:
+                attributeMap.setdefault(advertisement.attributes, set()).add(advertisement)
+            
+            # NLRI for address families other than inet unicast should
+            # get sent in MP Reach NLRI and MP Unreach NLRI attributes
+            attributeMap = self._moveToMPAttributes(af, attributeMap, withdrawals)
+        
+            # Send
+            for attributes, advertisements in attributeMap.iteritems():
+                self._sendUpdate(withdrawals.get(af, set()), attributes, advertisements)
+                
+                if af in withdrawals:
+                    withdrawals[af] = set() # Only send withdrawals once
+     
+            self.advertised[af] = self.toAdvertise[af]
+
+    def _moveToMPAttributes(self, addressfamily, attributeMap, withdrawals):
+        """
+        Move NLRI for address families other than inet unicast out of
+        the normal updates/withdrawals sets, and (re)construct MPReachNLRI/
+        MPUnreachNLRI for them.
+        
+        Arguments:
+        - addressfamily: (AFI, SAFI) tuple
+        - attributeMap: a dict of FrozenAttributeDict to updates sets
+        - withdrawals: a set of advertisements to withdraw
+        
+        Returns:
+        - a new address map (dict)
+        """
+        
+        # Currently inet unicast advertisements are sent the old way
+        if addressfamily == (AFI_INET, SAFI_UNICAST):
+            return attributeMap
+        
+        afi, safi = addressfamily
+        newAttributeMap = {}
+        
+        for attributes, advertisements in attributeMap.iteritems():
+            newAttributes = AttributeDict(attributes)
+            try:
+                newAttributes[MPReachNLRIAttribute].addPrefixes([ad.prefix for ad in advertisements])
+            except KeyError:
+                raise ValueError("Missing MPReachNLRIAttribute")
+        
+            # Only send withdrawals once
+            if len(withdrawals.get(addressfamily, set())) > 0:
+                newAttributes.add(MPUnreachNLRIAttribute((afi, safi,
+                    [w.prefix for w in withdrawals[addressfamily]])))
+                withdrawals[addressfamily].clear()
+                        
+            newAttributeMap[FrozenAttributeDict(newAttributes)] = set()
+        
+        return newAttributeMap
+
         
     def _sendUpdate(self, withdrawals, attributes, advertisements):
-        if len(withdrawals) + len(advertisements) > 0:
-            # Check if the NextHop attribute needs to be replaced
-            if attributes.nextHop.any:
-                attributes.nextHop.set(self.estabProtocol.transport.getHost().host) # FIXME: IPv6 # FIXME: Attributes are meant to be immutable!
-            
+        if (len(withdrawals) + len(advertisements) > 0
+            ) or (MPReachNLRIAttribute in attributes
+            ) or (MPUnreachNLRIAttribute in attributes):
             self.estabProtocol.sendUpdate([w.prefix for w in withdrawals], attributes, [a.prefix for a in advertisements])
