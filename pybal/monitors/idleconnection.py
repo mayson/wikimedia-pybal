@@ -96,6 +96,10 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         # Let the ancestor method do the real work
         return super(IdleConnectionMonitoringProtocol, self).buildProtocol(addr)
     
+    def retry(self, connector):
+        if self.active:
+            super(IdleConnectionMonitoringProtocol, self).retry(connector)
+
     def _connect(self, *args, **kwargs):
         """Starts a TCP connection attempt"""
         
