@@ -41,7 +41,7 @@ case "$1" in
   stop)
 	log_daemon_msg "Stopping $DESC" "$NAME"
 	start-stop-daemon --stop --quiet --pidfile $PIDFILE \
-		--name $NAME --oknodo
+		--name $NAME --retry 2 --oknodo
 	case "$?" in
 		0) log_end_msg 0 ;;
 		1) log_progress_msg "(already stopped)"
