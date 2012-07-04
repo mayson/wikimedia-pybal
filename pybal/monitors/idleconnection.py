@@ -49,6 +49,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     
     def clientConnectionFailed(self, connector, reason):
         """Called if the connection attempt failed"""
+
+        if not self.active:
+            return
         
         # Immediately set status to down
         self._resultDown(reason.getErrorMessage())
@@ -60,6 +63,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
 
     def clientConnectionLost(self, connector, reason):
         """Called if the connection was previously established, but lost at some point."""
+
+        if not self.active:
+            return
         
         from twisted.internet import error
         if reason.check(error.ConnectionDone):
@@ -96,10 +102,6 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         # Let the ancestor method do the real work
         return super(IdleConnectionMonitoringProtocol, self).buildProtocol(addr)
     
-    def retry(self, connector):
-        if self.active:
-            super(IdleConnectionMonitoringProtocol, self).retry(connector)
-
     def _connect(self, *args, **kwargs):
         """Starts a TCP connection attempt"""
         
