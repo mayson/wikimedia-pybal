@@ -41,9 +41,6 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         self.checkStartTime = None
         
         self.URL = self._getConfigStringList('url')
-        
-        # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
     
     def run(self):
         """Start the monitoring"""

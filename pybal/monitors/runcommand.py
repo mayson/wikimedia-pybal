@@ -241,9 +241,6 @@ class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
 
         self.checkCall = None
         self.runningProcess = None
-
-        # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
         
     def run(self):
         """Start the monitoring"""

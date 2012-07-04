@@ -34,9 +34,6 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         self.toCleanReconnect = self._getConfigInt('timeout-clean-reconnect', self.TIMEOUT_CLEAN_RECONNECT)
         self.maxDelay = self._getConfigInt('max-delay', self.MAX_DELAY)
         
-        # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
-        
     def run(self):
         """Start the monitoring"""
         

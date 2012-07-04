@@ -5,6 +5,8 @@ Copyright (C) 2006-2012 by Mark Bergsma <mark@nedworks.org>
 Monitor class implementations for PyBal
 """
 
+from twisted.internet import reactor
+
 class MonitoringProtocol(object):
     """
     Base class for all monitoring protocols. Declares a few obligatory
@@ -21,6 +23,9 @@ class MonitoringProtocol(object):
     
         self.active = False
         self.firstCheck = True
+
+        # Install cleanup handler
+        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
     
     def run(self):
         """Start the monitoring"""
