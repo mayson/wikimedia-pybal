@@ -7,7 +7,7 @@ Monitor class implementations for PyBal
 
 from pybal import monitor
 
-from twisted.internet import reactor, protocol
+from twisted.internet import reactor, protocol, defer
 from twisted.web import client
 from twisted.python.runtime import seconds
 
@@ -36,6 +36,7 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         self.toGET = self._getConfigInt('timeout', self.TIMEOUT_GET)
         
         self.checkCall = None
+        self.getPageDeferred = defer.Deferred()
         
         self.checkStartTime = None
         
@@ -59,13 +60,15 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
 
         if self.checkCall and self.checkCall.active():
             self.checkCall.cancel()
-            
-        # TODO: cancel a getPage as well        
+        
+        self.getPageDeferred.cancel()
         
     def check(self):
         """Periodically called method that does a single uptime check."""
         
-        # FIXME: Check if this monitoring instance is even still active
+        if not self.active:
+            print "WARNING: ProxyFetchMonitoringProtocol.check() called while active == False"
+            return
         
         # FIXME: Use GET as a workaround for a Twisted bug with HEAD/Content-length
         # where it expects a body and throws a PartialDownload failure
@@ -78,7 +81,7 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
             host = self.server.host
         
         self.checkStartTime = seconds()
-        self.getProxyPage(url, method='GET', host=host, port=self.server.port,
+        self.getPageDeferred = self.getProxyPage(url, method='GET', host=host, port=self.server.port,
                             timeout=self.toGET, followRedirect=False
             ).addCallbacks(self._fetchSuccessful, self._fetchFailed
             ).addBoth(self._checkFinished)
@@ -93,6 +96,10 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
     
     def _fetchFailed(self, failure):
         """Called when getProxyPage finished with a failure."""        
+
+        # Don't act as if the check failed if we cancelled it
+        if failure.check([defer.CancelledError]):
+            return None
                 
         self.report('Fetch failed, %.3f s' % (seconds() - self.checkStartTime))
     
