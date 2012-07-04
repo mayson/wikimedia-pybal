@@ -45,8 +45,7 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         
         super(IdleConnectionMonitoringProtocol, self).stop()
         
-        # self.stopTrying() only stops trying, disconnect() does both
-        self.disconnect()
+        self.stopTrying()
     
     def clientConnectionFailed(self, connector, reason):
         """Called if the connection attempt failed"""
