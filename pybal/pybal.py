@@ -49,7 +49,7 @@ class Server:
         self.port = 80
         self.ip4_addresses = set()
         self.ip6_addresses = set()
-        self.monitors = []
+        self.monitors = set()
         
         # A few invariants that SHOULD be maintained (but currently may not be):
         # P0: pooled => enabled /\ ready
@@ -70,22 +70,17 @@ class Server:
         return hash(self.host)
     
     def addMonitor(self, monitor):
-        """Adds a monitor instance to the list"""
+        """Adds a monitor instance to the set"""
+
+        self.monitors.add(monitor)
         
-        if monitor not in self.monitors:
-            self.monitors.append(monitor)
-    
-    def removeMonitor(self, monitor):
-        """Stops and removes a monitor instance from the list"""
-        
-        monitor.stop()
-        self.monitors.remove(monitor)    # May raise exception if not exists
-    
     def removeMonitors(self):
         """Removes all monitors"""
         
         for monitor in self.monitors:
-            self.removeMonitor(monitor)
+            monitor.stop()
+        
+        self.monitors.clear()
 
     def resolveHostname(self):
         """Attempts to resolve the server's hostname to an IP address for better reliability."""
@@ -214,13 +209,13 @@ class Server:
         """AND quantification of monitor.up over all monitoring instances of a single Server"""
         
         # Global status is up iff all monitors report up
-        return reduce(lambda b,monitor: b and monitor.up, self.monitors, self.monitors != [])
+        return reduce(lambda b,monitor: b and monitor.up, self.monitors, len(self.monitors) == 0)
     
     def calcPartialStatus(self):
         """OR quantification of monitor.up over all monitoring instances of a single Server"""
         
         # Partial status is up iff one of the monitors reports up      
-        return reduce(lambda b,monitor: b or monitor.up, self.monitors, self.monitors == [])
+        return reduce(lambda b,monitor: b or monitor.up, self.monitors, len(self.monitors) == 0)
 
     def textStatus(self):
         return "%s/%s/%s" % (self.enabled and "enabled" or "disabled",
