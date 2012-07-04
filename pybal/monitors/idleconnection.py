@@ -83,6 +83,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     
     def clientConnectionMade(self):
         """Called by buildProtocol, to notify that the connection has been established."""
+
+        if not self.active:
+            return
         
         # Set status to up
         self._resultUp()
