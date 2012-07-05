@@ -467,10 +467,7 @@ class Coordinator:
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
 
-    prefixes = {
-        (bgp.AFI_INET, bgp.SAFI_UNICAST): set(),
-        (bgp.AFI_INET6, bgp.SAFI_UNICAST): set()
-    }
+    prefixes = {}
     peerings = []
 
     def __init__(self, globalConfig):
@@ -535,9 +532,9 @@ class BGPFailover:
     def addPrefix(cls, prefix):
         try:
             if ':' not in prefix: 
-                cls.prefixes[(bgp.AFI_INET, bgp.SAFI_UNICAST)].add(bgp.IPv4IP(prefix))
+                cls.prefixes.setdefault((bgp.AFI_INET, bgp.SAFI_UNICAST), set()).add(bgp.IPv4IP(prefix))
             else:
-                cls.prefixes[(bgp.AFI_INET6, bgp.SAFI_UNICAST)].add(bgp.IPv6IP(prefix))
+                cls.prefixes.setdefault((bgp.AFI_INET6, bgp.SAFI_UNICAST), set()).add(bgp.IPv6IP(prefix))
         except NameError:
             # bgp not imported
             pass
