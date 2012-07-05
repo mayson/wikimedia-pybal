@@ -1,3 +1,10 @@
+pybal (1.03) precise; urgency=low
+
+  * Fix bug where bgp-nexthop-ipv4/6 config variables are always required
+  * Add bgp-nexthop-ipv4/6 examples in pybal.conf
+
+ -- Mark Bergsma <mark@wikimedia.org>  Thu, 05 Jul 2012 18:22:56 +0000
+
 pybal (1.02) precise; urgency=low
 
   * Add IPv6 BGP prefix advertisement support to PyBal
