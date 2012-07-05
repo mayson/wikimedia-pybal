@@ -1,11 +1,10 @@
-pybal (1.02~2.gbpa6789a) UNRELEASED; urgency=low
-    
-  ** SNAPSHOT build @a6789a4cd102e59dff898de430fa3408d3610b36 **
+pybal (1.02) precise; urgency=low
+
   * Add IPv6 BGP prefix advertisement support to PyBal
   * Use 16 bit example ASNs for now, PyBal doesn't support 32 bit yet
-  * Fix bug where monitors would not get deinitialized properly 
+  * Fix bug where monitors would not get deinitialized properly
 
- -- Mark Bergsma <mark@wikimedia.org>  Thu, 05 Jul 2012 09:41:03 +0000
+ -- Mark Bergsma <mark@wikimedia.org>  Thu, 05 Jul 2012 11:40:15 +0000
 
 pybal (1.01) precise; urgency=low
 
