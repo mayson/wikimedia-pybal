@@ -1,0 +1,123 @@
+"""
+dns.py
+Copyright (C) 2012 by Mark Bergsma <mark@nedworks.org>
+
+DNS Monitor class implementation for PyBal
+"""
+
+from pybal import monitor
+
+from twisted.internet import reactor, defer, error
+from twisted.names import client, dns
+from twisted.python import runtime
+
+import random, socket
+
+class DNSMonitoringProtocol(monitor.MonitoringProtocol):
+    """
+    Monitor that checks a DNS server by doing repeated DNS queries
+    """
+    
+    __name__ = 'DNS'
+    
+    INTV_CHECK = 10
+    TIMEOUT_QUERY = 5
+    
+    catchList = ( defer.TimeoutError, error.DNSLookupError )
+
+    
+    def __init__(self, coordinator, server, configuration):
+        """Constructor"""
+
+        # Call ancestor constructor        
+        super(DNSMonitoringProtocol, self).__init__(coordinator, server, configuration)
+
+        self.intvCheck = self._getConfigInt('interval', self.INTV_CHECK)
+        self.toQuery = self._getConfigInt('timeout', self.TIMEOUT_QUERY)
+        self.hostnames = self._getConfigStringList('hostname')
+        
+        self.resolver = None
+        self.checkCall = None
+        self.DNSQueryDeferred = defer.Deferred()
+        self.checkStartTime = None
+    
+    def run(self):
+        """Start the monitoring""" 
+        
+        super(DNSMonitoringProtocol, self).run()
+        
+        # Create a resolver
+        self.resolver = client.createResolver([(self.server.ip, 53)])
+
+        if not self.checkCall or not self.checkCall.active():
+            self.checkCall = reactor.callLater(self.intvCheck, self.check)
+    
+    def stop(self):
+        """Stop the monitoring"""
+        super(DNSMonitoringProtocol, self).stop()
+
+        if self.checkCall and self.checkCall.active():
+            self.checkCall.cancel()
+        
+        self.DNSQueryDeferred.cancel()
+
+    def check(self):
+        """Periodically called method that does a single uptime check."""
+
+        hostname = random.choice(self.hostnames)
+        query = dns.Query(hostname, ':' in hostname and dns.AAAA or dns.A)
+
+        self.checkStartTime = runtime.seconds()
+        
+        if query.type == dns.A:
+            self.DNSQueryDeferred = self.resolver.lookupAddress(hostname, timeout=self.toQuery)
+        elif query.type == dns.AAAA:
+            self.DNSQueryDeferred = self.resolver.lookupIPV6Address(hostname, timeout=self.toQuery)
+            
+        self.DNSQueryDeferred.addCallback(self._querySuccessful, self._queryFailed, callbackArgs=query
+                                          ).addBoth(self._checkFinished)
+
+    
+    def _querySuccessful(self, (answers, authority, additional), query):
+        """Called when the DNS query finished successfully."""        
+        
+        if query.type in (dns.A, dns.AAAA):
+            addressFamily = query.type == dns.A and socket.AF_INET or socket.AF_INET6
+            resultStr = " ".join([socket.inet_ntop(addressFamily, r.payload.address)
+                                  for r in answers
+                                  if r.name == query.name and r.type == query.type])
+        else:
+            resultStr = None
+        
+        self.report('DNS query successful, %.3f s' % (runtime.seconds() - self.checkStartTime)
+                    + resultStr and '(result: %s)' % resultStr or "")
+        self._resultUp()
+        
+        return answers, authority, additional
+    
+    def _queryFailed(self, failure):
+        """Called when the DNS query finished with a failure."""        
+
+        # Don't act as if the check failed if we cancelled it
+        if failure.check([defer.CancelledError]):
+            return None
+                
+        self.report('DNS query failed, %.3f s' % (runtime.seconds() - self.checkStartTime))
+    
+        self._resultDown(failure.getErrorMessage())
+        
+        failure.trap(*self.catchList)
+
+    def _checkFinished(self, result):
+        """
+        Called when the DNS query finished with either success or failure,
+        to do after-check cleanups.
+        """
+        
+        self.checkStartTime = None
+        
+        # Schedule the next check
+        if self.active:
+            self.checkCall = reactor.callLater(self.intvCheck, self.check)
+        
+        return result
