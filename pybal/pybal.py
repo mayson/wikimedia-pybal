@@ -485,15 +485,16 @@ class BGPFailover:
                                                   peerAddr=self.globalConfig.get('bgp-peer-address'))
             
             asPath = [int(asn) for asn in self.globalConfig.get('bgp-as-path', str(self.bgpPeering.myASN)).split()]
-            
             attributes = {}
+
             try:                
                 attributes[(bgp.AFI_INET, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict([
                     bgp.OriginAttribute(),
                     bgp.ASPathAttribute(asPath),
                     bgp.NextHopAttribute(self.globalConfig['bgp-nexthop-ipv4'])])
             except KeyError:
-                raise ValueError("IPv4 BGP NextHop (global configuration variable 'bgp-nexthop-ipv4') not set")
+                if (bgp.AFI_INET, bgp.SAFI_UNICAST) in BGPFailover.prefixes:
+                    raise ValueError("IPv4 BGP NextHop (global configuration variable 'bgp-nexthop-ipv4') not set")
             
             try:
                 attributes[(bgp.AFI_INET6, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict([
@@ -502,7 +503,8 @@ class BGPFailover:
                     bgp.MPReachNLRIAttribute((bgp.AFI_INET6, bgp.SAFI_UNICAST,
                                              bgp.IPv6IP(self.globalConfig['bgp-nexthop-ipv6']), []))])
             except KeyError:
-                raise ValueError("IPv6 BGP NextHop (global configuration variable 'bgp-nexthop-ipv6') not set")
+                if (bgp.AFI_INET6, bgp.SAFI_UNICAST) in BGPFailover.prefixes:
+                    raise ValueError("IPv6 BGP NextHop (global configuration variable 'bgp-nexthop-ipv6') not set")
 
             advertisements = set([bgp.Advertisement(prefix, attributes[af], af)
                                   for af in attributes.keys()
