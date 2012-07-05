@@ -505,7 +505,7 @@ class BGPFailover:
 
             advertisements = set([bgp.Advertisement(prefix, attributes[af], af)
                                   for af in attributes.keys()
-                                  for prefix in BGPFailover.prefixes[af]])
+                                  for prefix in BGPFailover.prefixes.get(af, set())])
             
             self.bgpPeering.setEnabledAddressFamilies(set(attributes.keys()))
             self.bgpPeering.setAdvertisements(advertisements)
