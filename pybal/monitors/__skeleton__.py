@@ -9,8 +9,6 @@ to be implemented.
 
 from pybal import monitor
 
-from twisted.internet import reactor
-
 class SkeletonMonitoringProtocol(monitor.MonitoringProtocol):
     """
     Description.
@@ -23,9 +21,6 @@ class SkeletonMonitoringProtocol(monitor.MonitoringProtocol):
 
         # Call ancestor constructor        
         super(SkeletonMonitoringProtocol, self).__init__(coordinator, server, configuration)
-        
-        # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
     
     def run(self):
         """Start the monitoring""" 
