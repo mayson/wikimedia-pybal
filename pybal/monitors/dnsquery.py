@@ -51,7 +51,7 @@ class DNSQueryMonitoringProtocol(monitor.MonitoringProtocol):
         super(DNSQueryMonitoringProtocol, self).run()
         
         # Create a resolver
-        self.resolver = client.createResolver([(ip, 53) for ip in self.ip4_addresses])
+        self.resolver = client.createResolver([(ip, 53) for ip in self.server.ip4_addresses])
 
         if not self.checkCall or not self.checkCall.active():
             self.checkCall = reactor.callLater(self.intvCheck, self.check)
