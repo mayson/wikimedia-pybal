@@ -1,3 +1,12 @@
+pybal (1.05) precise; urgency=low
+
+  * DNSQuery changes:
+    - Use IPv4 DNS servers only, small fixes
+    - Small fixes
+    - Support CNAMEs
+
+ -- Mark Bergsma <mark@wikimedia.org>  Fri, 06 Jul 2012 15:22:14 +0000
+
 pybal (1.04) precise; urgency=high
 
   * Fix severe bug introduced in previous version where up statis is
