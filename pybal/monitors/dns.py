@@ -112,6 +112,7 @@ class DNSMonitoringProtocol(monitor.MonitoringProtocol):
             errorStr = "DNS server error"
         elif failure.check([error.DNSNameError]):
             self.report("DNS server reports %s NXDOMAIN" % query.name)
+            self.resultUp()
             return None
         elif failure.check([error.DNSQueryRefusedError]):
             errorStr = "DNS query refused"
