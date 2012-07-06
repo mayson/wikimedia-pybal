@@ -1,3 +1,11 @@
+pybal (1.04) precise; urgency=high
+
+  * Fix severe bug introduced in previous version where up statis is
+    miscalculated
+  * Add a new DNSQuery monitor
+
+ -- Mark Bergsma <mark@wikimedia.org>  Fri, 06 Jul 2012 13:05:41 +0000
+
 pybal (1.03) precise; urgency=low
 
   * Fix bug where bgp-nexthop-ipv4/6 config variables are always required
