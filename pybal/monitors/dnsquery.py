@@ -90,7 +90,7 @@ class DNSQueryMonitoringProtocol(monitor.MonitoringProtocol):
             addressFamily = query.type == dns.A and socket.AF_INET or socket.AF_INET6
             addresses = " ".join([socket.inet_ntop(addressFamily, r.payload.address)
                                   for r in answers
-                                  if r.name == query.name and r.type == query.type])
+                                  if r.type == query.type])
             resultStr = "%s %s %s" % (query.name, dns.QUERY_TYPES[query.type], addresses)
         else:
             resultStr = None
