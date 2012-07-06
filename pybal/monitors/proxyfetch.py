@@ -7,7 +7,7 @@ Monitor class implementations for PyBal
 
 from pybal import monitor
 
-from twisted.internet import reactor, protocol, defer
+from twisted.internet import reactor, defer
 from twisted.web import client
 from twisted.python.runtime import seconds
 
@@ -22,7 +22,7 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
     
     __name__ = 'ProxyFetch'
     
-    from twisted.internet import defer, error
+    from twisted.internet import error
     from twisted.web import error as weberror
     catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError, error.DNSLookupError )
     

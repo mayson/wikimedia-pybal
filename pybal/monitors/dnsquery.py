@@ -51,7 +51,7 @@ class DNSQueryMonitoringProtocol(monitor.MonitoringProtocol):
         super(DNSQueryMonitoringProtocol, self).run()
         
         # Create a resolver
-        self.resolver = client.createResolver([(self.server.ip, 53)])
+        self.resolver = client.createResolver([(ip, 53) for ip in self.server.ip4_addresses])
 
         if not self.checkCall or not self.checkCall.active():
             self.checkCall = reactor.callLater(self.intvCheck, self.check)
@@ -90,7 +90,7 @@ class DNSQueryMonitoringProtocol(monitor.MonitoringProtocol):
             addressFamily = query.type == dns.A and socket.AF_INET or socket.AF_INET6
             addresses = " ".join([socket.inet_ntop(addressFamily, r.payload.address)
                                   for r in answers
-                                  if r.name == query.name and r.type == query.type])
+                                  if r.type == query.type])
             resultStr = "%s %s %s" % (query.name, dns.QUERY_TYPES[query.type], addresses)
         else:
             resultStr = None
