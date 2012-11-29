@@ -1,3 +1,10 @@
+pybal (0.2+git20120428-1) lucid; urgency=low
+
+  * Added port 0 support i.e. all tcp or udp traffic.
+  * Init script modified to use kill -9 for frozen python daemon.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Sat, 28 Apr 2012 18:06:24 +0700
+
 pybal (0.1+r74215) lucid; urgency=low
 
   * Newer TwistedBGP revision, fixing a bug where old BGP advertisements are

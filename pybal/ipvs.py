@@ -48,6 +48,7 @@ class IPVSManager:
         
         return {'tcp': '-t', 
                 'udp': '-u'}[service[0]] + ' %s:%d' % service[1:3]
+                
     subCommandService = staticmethod(subCommandService)
     
     def commandClearServiceTable():
@@ -71,6 +72,10 @@ class IPVSManager:
         """
         
         cmd = '-A ' + cls.subCommandService(service)
+        
+        # Include persistence if port is 0
+        if service[2] == 0:
+            cmd += ' -p'
         
         # Include scheduler if specified
         if len(service) > 3:

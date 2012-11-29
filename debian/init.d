@@ -35,6 +35,8 @@ case "$1" in
 	echo -n "Stopping $DESC: "
 	start-stop-daemon --stop --quiet --pidfile /var/run/$NAME.pid \
 		--name $NAME --oknodo
+	PS=`ps axf | grep /usr/sbin/pybal | grep -v grep | awk '{ print $1 }'`
+	test -n "$PS" && kill -9 $PS
 	echo "$NAME."
 	;;
   #reload)
@@ -55,13 +57,15 @@ case "$1" in
 	#	option to the "reload" entry above. If not, "force-reload" is
 	#	just the same as "restart".
 	#
-	echo -n "Restarting $DESC: "
-	start-stop-daemon --stop --quiet --pidfile \
-		/var/run/$NAME.pid --name $NAME --oknodo
+	#echo -n "Restarting $DESC: "
+	#start-stop-daemon --stop --quiet --pidfile \
+	#	/var/run/$NAME.pid --name $NAME --oknodo
+	$0 stop
 	sleep 1
-	start-stop-daemon --start --quiet --pidfile \
-		/var/run/$NAME.pid --startas $DAEMON -- $DAEMON_OPTS
-	echo "$NAME."
+	#start-stop-daemon --start --quiet --pidfile \
+	#	/var/run/$NAME.pid --startas $DAEMON -- $DAEMON_OPTS
+	#echo "$NAME."
+	$0 start
 	;;
   *)
 	N=/etc/init.d/$NAME

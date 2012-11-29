@@ -13,7 +13,16 @@ import os, sys, signal
 
 import ipvs, monitor, util
 
-from twisted.internet import reactor
+#from twisted.internet import reactor
+# Find the best reactor
+reactorchoices = ["epollreactor", "kqreactor", "cfreactor", "pollreactor", "selectreactor", "posixbase", "default"]
+for choice in reactorchoices:
+    try:
+	exec("from twisted.internet import %s as reactor" % choice)
+	break
+    except:
+	pass
+reactor.install()
 
 # TODO: make more dynamic
 from monitors import *
@@ -314,8 +323,8 @@ class Coordinator:
         and calls _parseConfig if it's different.
         """
         
-        import md5
-        newHash = md5.new(configuration)
+        from hashlib import md5
+        newHash = md5(configuration)
         if not self.configHash or self.configHash.digest() != newHash.digest():
             print 'New configuration received'
             
@@ -540,6 +549,10 @@ def terminate():
         pass
     
     print "Exiting..."
+    try:
+        reactor.stop()
+    except:
+        sys.exit()
 
 def sighandler(signum, frame):
     """
@@ -571,7 +584,7 @@ def main():
     # Read the configuration file
     configFile = '/etc/pybal/pybal.conf'
     
-    config = SafeConfigParser()
+    config = SafeConfigParser({'port':'0'})
     config.read(configFile)
     
     services, cliconfig = {}, {}
