@@ -587,6 +587,7 @@ def main():
     config = SafeConfigParser({'port':'0'})
     config.read(configFile)
     
+    global services
     services, cliconfig = {}, {}
     
     # Parse the command line
@@ -613,12 +614,17 @@ def main():
 
         globalConfig = {}
         for section in config.sections():
+            cfgtuple = {}
             if section != 'global':
-                cfgtuple = (
-                    config.get(section, 'protocol'),
-                    config.get(section, 'ip'),
-                    config.getint(section, 'port'),
-                    config.get(section, 'scheduler'))
+                ips = config.get(section, 'ip').split(',')
+                num = 1
+                for ip in ips:
+                    cfgtuple[num] = (
+                        config.get(section, 'protocol'),
+                        ip,
+                        config.getint(section, 'port'),
+                        config.get(section, 'scheduler'))
+                    num += 1
                 
             # Read the custom configuration options of the LVS section
             configdict = util.ConfigDict(config.items(section))
@@ -627,10 +633,14 @@ def main():
             configdict.update(cliconfig)
             
             if section != 'global':
-                services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
-                crd = Coordinator(services[section],
-                    configURL=config.get(section, 'config'))
-                print "Created LVS service '%s'" % section
+                num = 1
+                for ip in ips:
+                    servicename = '%s/%u' % (section, num)
+                    services[servicename] = ipvs.LVSService(section, cfgtuple[num], configuration=configdict)
+                    crd = Coordinator(services[servicename],
+                        configURL=config.get(section, 'config'))
+                    print "Created LVS service '%s'" % servicename
+                    num += 1
         
         
         # Set up BGP

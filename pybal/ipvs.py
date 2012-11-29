@@ -73,8 +73,8 @@ class IPVSManager:
         
         cmd = '-A ' + cls.subCommandService(service)
         
-        # Include persistence if port is 0
-        if service[2] == 0:
+        # Include persistence if enabled or port is 0
+        if service[4] or service[2] == 0:
             cmd += ' -p'
         
         # Include scheduler if specified
@@ -160,6 +160,7 @@ class LVSService:
         self.configuration = configuration
 
         self.ipvsManager.DryRun = configuration.getboolean('dryrun', False)
+        self.persist = configuration.getboolean('persistant', False)
         
         if self.configuration.getboolean('bgp', False):
             from pybal import BGPFailover
@@ -174,7 +175,7 @@ class LVSService:
         this LVS instance
         """
         
-        return (self.protocol, self.ip, self.port, self.scheduler)
+        return (self.protocol, self.ip, self.port, self.scheduler, self.persist)
     
     def createService(self):
         """
