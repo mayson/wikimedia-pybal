@@ -18,10 +18,10 @@ import ipvs, monitor, util
 reactorchoices = ["epollreactor", "kqreactor", "cfreactor", "pollreactor", "selectreactor", "posixbase", "default"]
 for choice in reactorchoices:
     try:
-	exec("from twisted.internet import %s as reactor" % choice)
-	break
+        exec("from twisted.internet import %s as reactor" % choice)
+        break
     except:
-	pass
+        pass
 reactor.install()
 
 # TODO: make more dynamic
@@ -369,6 +369,20 @@ class Coordinator:
         # Assign the updated list of enabled servers to the LVSService instance
         self.assignServers()   
 
+class Loopback:
+        ipPath = '/sbin/ip'
+        loLabel = 'LVS'
+        
+        @classmethod
+        def addIP(cls, ip):
+            print 'Adding IP %s to the lo:%s interface...' % (ip, cls.loLabel)
+            os.system('%s address add %s/32 dev lo:%s' % (cls.ipPath, ip, cls.loLabel))
+        
+        @classmethod
+        def delIP(cls, ip):
+            print 'Removing IP %s from lo:%s interface...' % (ip, cls.loLabel)
+            os.system('%s address del %s/32 dev lo:%s' % (cls.ipPath, ip, cls.loLabel))
+
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
 
@@ -547,6 +561,9 @@ def terminate():
         os.unlink('/var/run/pybal.pid')
     except OSError:
         pass
+    
+    for service in services:
+        Loopback.delIP(services[service].ip)
     
     print "Exiting..."
     try:

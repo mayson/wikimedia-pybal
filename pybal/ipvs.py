@@ -167,6 +167,9 @@ class LVSService:
             # Add service ip to the BGP announcements
             BGPFailover.addPrefix(self.ip)
         
+        from pybal import Loopback
+        Loopback.addIP(self.ip)
+        
         self.createService()
     
     def service(self):
