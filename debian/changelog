@@ -1,3 +1,10 @@
+pybal (0.2+git20121129-1) lucid; urgency=low
+
+  * Loopback IP address added at startup and deleted on shutdown.
+  * persistant config key added and allow several ip addresses comma-sepated.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Thu, 29 Nov 2012 15:20:21 +0700
+
 pybal (0.2+git20120428-1) lucid; urgency=low
 
   * Added port 0 support i.e. all tcp or udp traffic.
