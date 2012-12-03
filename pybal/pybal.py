@@ -13,16 +13,7 @@ import os, sys, signal
 
 import ipvs, monitor, util
 
-#from twisted.internet import reactor
-# Find the best reactor
-reactorchoices = ["epollreactor", "kqreactor", "cfreactor", "pollreactor", "selectreactor", "posixbase", "default"]
-for choice in reactorchoices:
-    try:
-        exec("from twisted.internet import %s as reactor" % choice)
-        break
-    except:
-        pass
-reactor.install()
+from twisted.internet import reactor
 
 # TODO: make more dynamic
 from monitors import *
@@ -568,15 +559,15 @@ def terminate():
     print "Exiting..."
     try:
         reactor.stop()
-    except:
-        sys.exit()
+    finally:
+        os._exit( 0 )
 
 def sighandler(signum, frame):
     """
     Signal handler
     """
     
-    if signum == signal.SIGTERM:
+    if signum in (signal.SIGTERM, signal.SIGINT):
         terminate()
     elif signum == signal.SIGHUP:
         # Cycle logfiles
@@ -590,7 +581,7 @@ def installSignalHandlers():
     Installs Unix signal handlers, e.g. to run terminate() on TERM
     """
     
-    signals = [signal.SIGTERM, signal.SIGHUP]
+    signals = [signal.SIGTERM, signal.SIGINT, signal.SIGHUP]
     
     for sig in signals:
         signal.signal(sig, sighandler)
