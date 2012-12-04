@@ -659,7 +659,7 @@ def main():
         configdict.update(cliconfig)
         bgpannouncement = BGPFailover(configdict)
 
-        reactor.run()
+        reactor.run(installSignalHandlers=0)
     finally:
         terminate()
 

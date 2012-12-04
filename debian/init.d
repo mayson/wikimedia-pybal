@@ -35,8 +35,8 @@ case "$1" in
 	echo -n "Stopping $DESC: "
 	start-stop-daemon --stop --quiet --pidfile /var/run/$NAME.pid \
 		--name $NAME --oknodo
-	PS=`ps axf | grep /usr/sbin/pybal | grep -v grep | awk '{ print $1 }'`
-	test -n "$PS" && kill -9 $PS
+	#PS=`ps axf | grep /usr/sbin/pybal | grep -v grep | awk '{ print $1 }'`
+	#test -n "$PS" && kill -9 $PS
 	echo "$NAME."
 	;;
   #reload)
