@@ -160,7 +160,7 @@ class LVSService:
         self.configuration = configuration
 
         self.ipvsManager.DryRun = configuration.getboolean('dryrun', False)
-        self.persist = configuration.getboolean('persistant', False)
+        self.persist = configuration.getboolean('persistent', False)
         
         if self.configuration.getboolean('bgp', False):
             from pybal import BGPFailover

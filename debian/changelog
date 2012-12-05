@@ -1,7 +1,7 @@
 pybal (0.2+git20121204-1) lucid; urgency=low
 
   * Loopback IP address added at startup and deleted on shutdown.
-  * Persistant config key added.
+  * Persistent config key added.
   * Allow several public ip addresses comma-sepated.
 
  -- Sergey Maslov <sergey@maslov.biz>  Tue, 04 Dec 2012 11:05:21 +0700
