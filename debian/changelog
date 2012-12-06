@@ -1,3 +1,9 @@
+pybal (0.2+git20121206-1) lucid; urgency=low
+
+  * BGP reconnect after disconnect.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Thu, 06 Dec 2012 09:12:22 +0700
+
 pybal (0.2+git20121204-1) lucid; urgency=low
 
   * Loopback IP address added at startup and deleted on shutdown.

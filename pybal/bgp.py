@@ -1009,12 +1009,11 @@ class FSM(object):
         (event 23)
         """
         
-        # DEBUG
-        print "Collided, closing."
-
-        if self.state == ST_IDLE:
+        if self.state in (ST_IDLE, ST_ESTABLISHED):
             return
-        elif self.state in (ST_OPENSENT, ST_OPENCONFIRM, ST_ESTABLISHED):
+        elif self.state in (ST_OPENSENT, ST_OPENCONFIRM):
+            # DEBUG
+            print "Collided, closing."
             self.protocol.sendNotification(ERR_CEASE, 0)
             
         self._errorClose()
