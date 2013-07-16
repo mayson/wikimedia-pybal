@@ -31,9 +31,10 @@ class Server:
     # Defaults
     DEF_STATE = True
     DEF_WEIGHT = 10
+    DEF_FWMETHOD = 'g'
     
     # Set of attributes allowed to be overridden in a server list
-    allowedConfigKeys = [ ('host', str), ('weight', int), ('enabled', bool) ]
+    allowedConfigKeys = [ ('host', str), ('weight', int), ('fwmethod', str), ('enabled', bool) ]
     
     def __init__(self, host):
         """Constructor"""        
@@ -51,6 +52,7 @@ class Server:
         
         self.weight = self.DEF_WEIGHT
         self.up = self.DEF_STATE
+        self.fwmethod = self.DEF_FWMETHOD
         self.pooled = self.up
         self.enabled = True
         self.modified = None

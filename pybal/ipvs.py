@@ -110,8 +110,17 @@ class IPVSManager:
         # Include weight if specified
         if server.weight:
             cmd += ' -w %d' % server.weight
-
+        
+        # Include packet forwarding method
+        if server.fwmethod in ('i', 'ipip'):
+            cmd += ' -i'
+        elif server.fwmethod in ('m', 'masq', 'masquerading'):
+            cmd += ' -m'
+        elif server.fwmethod not in ('g', 'gw', 'gate', 'gatewaying'):
+            print "Server %s: unknown forwarding method %s, using default" % ((server.ip or server.host), server.fwmethod)
+        
         return cmd
+    
     commandAddServer = classmethod(commandAddServer)
     
     def commandEditServer(cls, service, server):
@@ -235,4 +244,4 @@ class LVSService:
     def getDepoolThreshold(self):
         """Returns the threshold below which no more down servers will be depooled"""
         
-        return self.configuration.getfloat('depool-threshold', .5)
+        return self.configuration.getfloat('depool-threshold', 0)

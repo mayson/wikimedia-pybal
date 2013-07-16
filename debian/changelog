@@ -1,3 +1,10 @@
+pybal (0.2+git20130716-0) lucid; urgency=low
+
+  * Added fwmethod directive to hosts configurtion.
+  * Now depool-threshold default value is 0.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Tue, 16 Jul 2013 14:37:28 +0700
+
 pybal (0.2+git20121206-1) lucid; urgency=low
 
   * BGP reconnect after disconnect.
