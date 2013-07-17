@@ -1,3 +1,9 @@
+pybal (0.2+git20130716-0) stable; urgency=low
+
+  * Depends on python2.6 due to wheezy's twisted dependecies.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Wed, 17 Jul 2013 17:40:24 +0700
+
 pybal (0.2+git20130716-0) lucid; urgency=low
 
   * Added fwmethod directive to hosts configurtion.
