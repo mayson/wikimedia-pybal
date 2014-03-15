@@ -623,35 +623,40 @@ def main():
         installSignalHandlers()
 
         globalConfig = {}
-        for section in config.sections():
-            cfgtuple = {}
-            if section != 'global':
-                ips = config.get(section, 'ip').split(',')
-                num = 1
-                for ip in ips:
-                    cfgtuple[num] = (
-                        config.get(section, 'protocol'),
-                        ip,
-                        config.getint(section, 'port'),
-                        config.get(section, 'scheduler'))
-                    num += 1
-                
-            # Read the custom configuration options of the LVS section
-            configdict = util.ConfigDict(config.items(section))
-            
-            # Override with command line options
-            configdict.update(cliconfig)
-            
-            if section != 'global':
-                num = 1
-                for ip in ips:
-                    servicename = '%s/%u' % (section, num)
-                    services[servicename] = ipvs.LVSService(section, cfgtuple[num], configuration=configdict)
-                    crd = Coordinator(services[servicename],
-                        configURL=config.get(section, 'config'))
-                    print "Created LVS service '%s'" % servicename
-                    num += 1
         
+        try:
+            for section in config.sections():
+                cfgtuple = {}
+                if section != 'global':
+                    ips = config.get(section, 'ip').split(',')
+                    num = 1
+                    for ip in ips:
+                        cfgtuple[num] = (
+                            config.get(section, 'protocol'),
+                            ip,
+                            config.getint(section, 'port'),
+                            config.get(section, 'scheduler'))
+                        num += 1
+                
+                # Read the custom configuration options of the LVS section
+                configdict = util.ConfigDict(config.items(section))
+                
+                # Override with command line options
+                configdict.update(cliconfig)
+                
+                if section != 'global':
+                    num = 1
+                    for ip in ips:
+                        servicename = '%s/%u' % (section, num)
+                        services[servicename] = ipvs.LVSService(section, cfgtuple[num], configuration=configdict)
+                        crd = Coordinator(services[servicename],
+                            configURL=config.get(section, 'config'))
+                        print "Created LVS service '%s'" % servicename
+                        num += 1
+            
+        except Exception, e:
+            print "Config parsing error: %s" % e
+            terminate()
         
         # Set up BGP
         try:
