@@ -571,6 +571,8 @@ def sighandler(signum, frame):
     
     if signum in (signal.SIGTERM, signal.SIGINT):
         terminate()
+    elif signum == signal.SIGCHLD:
+        pass # still do nothing
     elif signum == signal.SIGHUP:
         # Cycle logfiles
         from util import LogFile
@@ -583,7 +585,7 @@ def installSignalHandlers():
     Installs Unix signal handlers, e.g. to run terminate() on TERM
     """
     
-    signals = [signal.SIGTERM, signal.SIGINT, signal.SIGHUP]
+    signals = [signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGCHLD]
     
     for sig in signals:
         signal.signal(sig, sighandler)

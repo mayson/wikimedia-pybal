@@ -38,7 +38,7 @@ class ProcessGroupProcess(process.Process):
             assert 'r' not in childFDs.values()
             assert 'w' not in childFDs.values()
         if not signal.getsignal(signal.SIGCHLD):
-            log.msg("spawnProcess called, but the SIGCHLD handler is not "
+            print("spawnProcess called, but the SIGCHLD handler is not "
                     "installed. This probably means you have not yet "
                     "called reactor.run, or called "
                     "reactor.run(installSignalHandler=0). You will probably "
@@ -174,8 +174,8 @@ class ProcessGroupProcess(process.Process):
             # the 'transport' is used for some compatibility methods
             if self.proto is not None:
                 self.proto.makeConnection(self)
-        except:
-            log.err()
+        except Exception, e:
+            print(e)
         process.registerReapProcessHandler(self.pid, self)
 
     def processEnded(self, status):
