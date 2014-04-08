@@ -43,7 +43,7 @@ class Server:
             self.addressFamily = addressFamily
         else: 
             self.addressFamily = (':' in self.lvsservice.ip) and socket.AF_INET6 or socket.AF_INET
-        self.ip = None
+        self.ip = self.host if self.is_valid_ip() else None
         self.port = 80
         self.ip4_addresses = set()
         self.ip6_addresses = set()
@@ -79,6 +79,31 @@ class Server:
             monitor.stop()
         
         self.monitors.clear()
+
+    def is_valid_ip(self):
+        """Validates IP addresses.
+        """
+        return self.is_valid_ipv4() or self.is_valid_ipv6()
+
+    def is_valid_ipv4(self):
+        try:
+            socket.inet_pton(socket.AF_INET, self.host)
+        except AttributeError:  # no inet_pton here, sorry
+            try:
+                socket.inet_aton(self.host)
+            except socket.error:
+                return False
+            return self.host.count('.') == 3
+        except socket.error:  # not a valid address
+            return False
+        return True
+
+    def is_valid_ipv6(self):
+        try:
+            socket.inet_pton(socket.AF_INET6, self.host)
+        except socket.error:  # not a valid address
+            return False
+        return True
 
     def resolveHostname(self):
         """Attempts to resolve the server's hostname to an IP address for better reliability."""
@@ -146,8 +171,12 @@ class Server:
         when ready for use (self.ready == True)
         """
 
-        d = self.resolveHostname()
-        
+        if self.ip:
+            d = defer.Deferred()
+            reactor.callLater(1, d.callback, coordinator)
+        else:
+            d = self.resolveHostname()
+            
         return d.addCallbacks(self._ready, self._initFailed, callbackArgs=[coordinator])
     
     def _ready(self, result, coordinator):
@@ -718,6 +747,7 @@ def main():
     config = SafeConfigParser({'port':'0'})
     config.read(configFile)
     
+    global services
     services, cliconfig = {}, {}
     
     # Parse the command line

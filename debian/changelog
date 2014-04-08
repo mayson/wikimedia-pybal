@@ -1,3 +1,9 @@
+pybal (1.2+git20140408-0) stable; urgency=low
+
+  * Added check if host is an IP address.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Tue, 08 Apr 2014 11:47:21 +0700
+
 pybal (1.2+git20140407-0) stable; urgency=low
 
   * Imported all upstream git commits.
