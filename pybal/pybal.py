@@ -55,6 +55,7 @@ class Server:
         # P2: pooled => up \/ !canDepool
         
         self.weight = self.DEF_WEIGHT
+        self.fwmethod = self.DEF_FWMETHOD
         self.up = False
         self.pooled = False
         self.enabled = True
@@ -187,7 +188,6 @@ class Server:
         self.ready = True
         self.up = self.DEF_STATE
         self.pooled = self.DEF_STATE
-        self.fwmethod = self.DEF_FWMETHOD
         self.maintainState()
 
         self.createMonitoringInstances(coordinator)
