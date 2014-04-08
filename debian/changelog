@@ -1,6 +1,6 @@
-pybal (0.2+git20140317-0) stable; urgency=low
+pybal (1.2+git20140407-0) stable; urgency=low
 
-  * Depends on python2.6 due to wheezy's twisted dependecies.
+  * Imported all upstream git commits.
 
  -- Sergey Maslov <sergey@maslov.biz>  Wed, 17 Mar 2014 08:56:45 +0700
 
@@ -31,6 +31,66 @@ pybal (0.2+git20120428-1) lucid; urgency=low
   * Init script modified to use kill -9 for frozen python daemon.
 
  -- Sergey Maslov <sergey@maslov.biz>  Sat, 28 Apr 2012 18:06:24 +0700
+
+pybal (1.05) precise; urgency=low
+
+  * DNSQuery changes:
+    - Use IPv4 DNS servers only, small fixes
+    - Small fixes
+    - Support CNAMEs
+
+ -- Mark Bergsma <mark@wikimedia.org>  Fri, 06 Jul 2012 15:22:14 +0000
+
+pybal (1.04) precise; urgency=high
+
+  * Fix severe bug introduced in previous version where up statis is
+    miscalculated
+  * Add a new DNSQuery monitor
+
+ -- Mark Bergsma <mark@wikimedia.org>  Fri, 06 Jul 2012 13:05:41 +0000
+
+pybal (1.03) precise; urgency=low
+
+  * Fix bug where bgp-nexthop-ipv4/6 config variables are always required
+  * Add bgp-nexthop-ipv4/6 examples in pybal.conf
+
+ -- Mark Bergsma <mark@wikimedia.org>  Thu, 05 Jul 2012 18:22:56 +0000
+
+pybal (1.02) precise; urgency=low
+
+  * Add IPv6 BGP prefix advertisement support to PyBal
+  * Use 16 bit example ASNs for now, PyBal doesn't support 32 bit yet
+  * Fix bug where monitors would not get deinitialized properly
+
+ -- Mark Bergsma <mark@wikimedia.org>  Thu, 05 Jul 2012 11:40:15 +0000
+
+pybal (1.01) precise; urgency=low
+
+  * Fix erroneous use of str.find()
+  * Catch and handle server list load errors
+  * Set umask 022 for the daemon
+  * Simplify subCommandServer
+  * Make sure we don't pass any IPv6 service IP addresses to BGP at the moment
+  * Replace some too generic exception handlers by more specific exceptions in bgp.py
+  * Fix bug where BGPPeering.manualStop() would not fire callbacks
+
+ -- Mark Bergsma <mark@wikimedia.org>  Tue, 05 Jun 2012 08:51:13 +0000
+
+pybal (1.00) precise; urgency=low
+
+  [ Faidon Liambotis ]
+  * Add b-d on python-all and use dh_python2
+
+  [ Mark Bergsma ]
+  * Add basic IPv6 support to PyBal
+
+ -- Mark Bergsma <mark@wikimedia.org>  Mon, 04 Jun 2012 14:29:43 +0000
+
+pybal (0.1+r20120524-1) lucid; urgency=low
+
+  * Refactor Debian package & init script.
+
+ -- Faidon Liambotis <paravoid@debian.org>  Thu, 24 May 2012 20:36:23 +0300
 
 pybal (0.1+r74215) lucid; urgency=low
 

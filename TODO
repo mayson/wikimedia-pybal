@@ -13,3 +13,5 @@ TODO for PyBal
 * Reimplement IPVSManager using Netlink once the IPVS Netlink interface
   has entered the kernel
 * Revisit the whole config parsing wrt consistency and security
+* Syntax errors in server lists cause unhandled Deferreds, and appear
+  to stop any further config rereads - this needs to be fixed.

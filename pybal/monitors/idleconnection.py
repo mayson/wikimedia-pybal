@@ -3,13 +3,13 @@ idleconnection.py
 Copyright (C) 2006 by Mark Bergsma <mark@nedworks.org>
 
 Monitor class implementations for PyBal
-
-$Id: monitor.py 17191 2006-10-22 11:33:00Z mark $
 """
 
 from pybal import monitor
 
 from twisted.internet import reactor, protocol
+
+import random
 
 class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.ReconnectingClientFactory):
     """
@@ -34,9 +34,6 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         self.toCleanReconnect = self._getConfigInt('timeout-clean-reconnect', self.TIMEOUT_CLEAN_RECONNECT)
         self.maxDelay = self._getConfigInt('max-delay', self.MAX_DELAY)
         
-        # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
-        
     def run(self):
         """Start the monitoring"""
         
@@ -52,6 +49,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     
     def clientConnectionFailed(self, connector, reason):
         """Called if the connection attempt failed"""
+
+        if not self.active:
+            return
         
         # Immediately set status to down
         self._resultDown(reason.getErrorMessage())
@@ -63,6 +63,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
 
     def clientConnectionLost(self, connector, reason):
         """Called if the connection was previously established, but lost at some point."""
+
+        if not self.active:
+            return
         
         from twisted.internet import error
         if reason.check(error.ConnectionDone):
@@ -79,6 +82,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     
     def clientConnectionMade(self):
         """Called by buildProtocol, to notify that the connection has been established."""
+
+        if not self.active:
+            return
         
         # Set status to up
         self._resultUp()
@@ -102,4 +108,9 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     def _connect(self, *args, **kwargs):
         """Starts a TCP connection attempt"""
         
-        reactor.connectTCP(self.server.host, self.server.port, self, *args, **kwargs)
+        try:
+            host = random.choice(self.server.ip4_addresses)
+        except (TypeError, IndexError):
+            host = self.server.host
+        
+        reactor.connectTCP(host, self.server.port, self, *args, **kwargs)

@@ -3,13 +3,11 @@ proxyfetch.py
 Copyright (C) 2006 by Mark Bergsma <mark@nedworks.org>
 
 Monitor class implementations for PyBal
-
-$Id: monitor.py 17191 2006-10-22 11:33:00Z mark $
 """
 
 from pybal import monitor
 
-from twisted.internet import reactor, protocol
+from twisted.internet import reactor, defer
 from twisted.web import client
 from twisted.python.runtime import seconds
 
@@ -24,9 +22,9 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
     
     __name__ = 'ProxyFetch'
     
-    from twisted.internet import defer, error
+    from twisted.internet import error
     from twisted.web import error as weberror
-    catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError, error.ConnectionDone )
+    catchList = ( defer.TimeoutError, weberror.Error, error.ConnectError, error.ConnectionDone, error.DNSLookupError )
     
     def __init__(self, coordinator, server, configuration={}):
         """Constructor"""
@@ -38,13 +36,11 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         self.toGET = self._getConfigInt('timeout', self.TIMEOUT_GET)
         
         self.checkCall = None
+        self.getPageDeferred = defer.Deferred()
         
         self.checkStartTime = None
         
         self.URL = self._getConfigStringList('url')
-        
-        # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
     
     def run(self):
         """Start the monitoring"""
@@ -61,22 +57,28 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
 
         if self.checkCall and self.checkCall.active():
             self.checkCall.cancel()
-            
-        # TODO: cancel a getPage as well        
+        
+        self.getPageDeferred.cancel()
         
     def check(self):
         """Periodically called method that does a single uptime check."""
         
-        # FIXME: Check if this monitoring instance is even still active
+        if not self.active:
+            print "WARNING: ProxyFetchMonitoringProtocol.check() called while active == False"
+            return
         
         # FIXME: Use GET as a workaround for a Twisted bug with HEAD/Content-length
         # where it expects a body and throws a PartialDownload failure
         
         import random
         url = random.choice(self.URL)
+        try:
+            host = random.choice(self.server.ip4_addresses)
+        except (TypeError, IndexError):
+            host = self.server.host
         
         self.checkStartTime = seconds()
-        self.getProxyPage(url, method='GET', host=self.server.host, port=self.server.port,
+        self.getPageDeferred = self.getProxyPage(url, method='GET', host=host, port=self.server.port,
                             timeout=self.toGET, followRedirect=False
             ).addCallbacks(self._fetchSuccessful, self._fetchFailed
             ).addBoth(self._checkFinished)
@@ -91,6 +93,10 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
     
     def _fetchFailed(self, failure):
         """Called when getProxyPage finished with a failure."""        
+
+        # Don't act as if the check failed if we cancelled it
+        if failure.check(defer.CancelledError):
+            return None
                 
         self.report('Fetch failed, %.3f s' % (seconds() - self.checkStartTime))
     

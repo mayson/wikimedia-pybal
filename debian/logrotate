@@ -1,0 +1,12 @@
+/var/log/pybal.log {
+  rotate 6
+  daily
+  compress
+  missingok
+  notifempty
+  postrotate
+    if [ -e /var/run/pybal.pid ]; then
+      invoke-rc.d --quiet pybal force-reload > /dev/null
+    fi
+  endscript
+}

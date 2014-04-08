@@ -1,13 +1,15 @@
 Source: pybal
-Section: unknown
+Section: net
 Priority: optional
 Maintainer: Mark Bergsma <mark@wikimedia.org>
-Build-Depends: debhelper (>= 5), wget
-Standards-Version: 3.7.2
+Uploaders: Faidon Liambotis <faidon@wikimedia.org>
+Build-Depends: debhelper (>= 8), python-all
+Standards-Version: 3.9.3
+Homepage: http://wikitech.wikimedia.org/view/Pybal
 
 Package: pybal
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, iproute | iproute2, ipvsadm, python2.6, python-twisted
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, python-twisted, ipvsadm, iproute | iproute2
 Description: Wikimedia LVS monitor
  PyBal is an LVS load balancer monitor. It checks the status of
  backend servers through various methods (monitors) and alters

@@ -1,11 +1,11 @@
 """
 monitor.py
-Copyright (C) 2006-2008 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2012 by Mark Bergsma <mark@nedworks.org>
 
 Monitor class implementations for PyBal
-
-$Id$
 """
+
+from twisted.internet import reactor
 
 class MonitoringProtocol(object):
     """
@@ -23,6 +23,9 @@ class MonitoringProtocol(object):
     
         self.active = False
         self.firstCheck = True
+
+        # Install cleanup handler
+        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
     
     def run(self):
         """Start the monitoring"""
@@ -70,7 +73,7 @@ class MonitoringProtocol(object):
         Common method for reporting/logging check results
         """
         
-        print "[%s] %s (%s): %s" % (self.__name__, self.server.host, self.server.textStatus(), text)
+        print "[%s %s] %s (%s): %s" % (self.server.lvsservice.name, self.__name__, self.server.host, self.server.textStatus(), text)
     
     def _getConfigBool(self, optionname, default=None):
         return self.configuration.getboolean('%s.%s' % (self.__name__.lower(), optionname), default)

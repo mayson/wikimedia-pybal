@@ -3,8 +3,6 @@ runcommand.py
 Copyright (C) 2008 by Mark Bergsma <mark@nedworks.org>
 
 Monitor class implementations for PyBal
-
-$Id$
 """
 
 from pybal import monitor
@@ -125,7 +123,7 @@ class ProcessGroupProcess(process.Process):
                 if sessionLeader: self._setupSession()
                 self._execChild(path, settingUID, uid, gid,
                                 command, args, environment)
-            except:
+            except Exception:
                 # If there are errors, bail and try to write something
                 # descriptive to stderr.
                 # XXX: The parent's stderr isn't necessarily fd 2 anymore, or
@@ -141,7 +139,7 @@ class ProcessGroupProcess(process.Process):
                     stderr.flush()
                     for fd in range(3):
                         os.close(fd)
-                except:
+                except Exception:
                     pass # make *sure* the child terminates
             # Did you read the comment about not adding code here?
             os._exit(1)
@@ -181,7 +179,7 @@ class ProcessGroupProcess(process.Process):
     def processEnded(self, status):
         if self.timeoutCall:
             try: self.timeoutCall.cancel()
-            except: pass
+            except Exception: pass
 
         pgid = -self.pid
         try:
@@ -243,9 +241,6 @@ class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
 
         self.checkCall = None
         self.runningProcess = None
-
-        # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
         
     def run(self):
         """Start the monitoring"""
