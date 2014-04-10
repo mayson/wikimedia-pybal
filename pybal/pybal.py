@@ -33,6 +33,8 @@ class Server:
     
     # Set of attributes allowed to be overridden in a server list
     allowedConfigKeys = [ ('host', str), ('weight', int), ('fwmethod', str), ('enabled', bool) ]
+    # Set of default values
+    defaultConfigValues = [ ('weight', DEF_WEIGHT), ('fwmethod', DEF_FWMETHOD), ('enabled', True) ]
         
     def __init__(self, host, lvsservice, addressFamily=None):
         """Constructor"""        
@@ -265,6 +267,9 @@ class Server:
         for key, value in configuration.iteritems():
             if (key, type(value)) not in self.allowedConfigKeys:
                 del configuration[key]
+        for key, value in self.defaultConfigValues:
+            if not configuration.has_key(key):
+                configuration[key] = value
         
         # Overwrite configuration
         self.__dict__.update(configuration)

@@ -135,8 +135,10 @@ class IPVSManager:
             cmd += ' -i'
         elif server.fwmethod in ('m', 'masq', 'masquerading'):
             cmd += ' -m'
-        elif server.fwmethod not in ('g', 'gw', 'gate', 'gatewaying'):
-            print "Server %s: unknown forwarding method %s, using default" % ((server.ip or server.host), server.fwmethod)
+        else:
+            cmd += ' -g'
+            if server.fwmethod not in ('g', 'gw', 'gate', 'gatewaying'):
+                print "Server %s: unknown forwarding method %s, using default" % ((server.ip or server.host), server.fwmethod)
         
         return cmd
     
@@ -156,6 +158,16 @@ class IPVSManager:
         # Include weight if specified
         if server.weight:
             cmd += ' -w %d' % server.weight
+        
+        # Include packet forwarding method
+        if server.fwmethod in ('i', 'ipip'):
+            cmd += ' -i'
+        elif server.fwmethod in ('m', 'masq', 'masquerading'):
+            cmd += ' -m'
+        else:
+            cmd += ' -g'
+            if server.fwmethod not in ('g', 'gw', 'gate', 'gatewaying'):
+                print "Server %s: unknown forwarding method %s, using default" % ((server.ip or server.host), server.fwmethod)
         
         return cmd
     commandEditServer = classmethod(commandEditServer)
