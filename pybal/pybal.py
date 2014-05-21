@@ -616,24 +616,15 @@ def createDaemon():
     else:
         os._exit( 0 )         # Exit parent of the first child.
 
-    # Close all open files.  Try the system configuration variable, SC_OPEN_MAX,
-    # for the maximum number of open files to close.  If it doesn't exist, use
-    # the default value (configurable).
-    try:
-        maxfd = os.sysconf( "SC_OPEN_MAX" )
-    except ( AttributeError, ValueError ):
-        maxfd = 256       # default maximum
-
-    #for fd in range( 0, maxfd ):
-    #    try:
-    #        os.close( fd )
-    #    except OSError:   # ERROR (ignore)
-    #        pass
-
     # Redirect the standard file descriptors to /dev/null.
-    os.open( "/dev/null", os.O_RDONLY )    # standard input (0)
-    os.open( "/dev/null", os.O_RDWR )       # standard output (1)
-    os.open( "/dev/null", os.O_RDWR )       # standard error (2)
+    sys.stdin.flush()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    null = os.open(os.devnull, os.O_RDWR)
+    os.dup2(null, sys.stdin.fileno())
+    os.dup2(null, sys.stdout.fileno())
+    os.dup2(null, sys.stderr.fileno())
+    os.close(null)
 
     return( 0 )
 
