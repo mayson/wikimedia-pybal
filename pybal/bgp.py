@@ -1047,7 +1047,6 @@ class FSM(object):
                 self._closeConnection()
                 if self.bgpPeering: self.bgpPeering.releaseResources(self.protocol)
                 self.state = ST_IDLE
-                if self.bgpPeering: self.bgpPeering.connectionClosed(self.protocol)
         elif self.state == ST_ACTIVE:
             # State Active, event 18
             self.connectRetryTimer.reset(self.connectRetryTime)
@@ -1062,7 +1061,6 @@ class FSM(object):
             self._closeConnection()
             self.connectRetryTimer.reset(self.connectRetryTime)
             self.state = ST_ACTIVE
-            if self.bgpPeering: self.bgpPeering.connectionClosed(self.protocol)
         elif self.state in (ST_OPENCONFIRM, ST_ESTABLISHED):
             self._errorClose()
 
@@ -1348,6 +1346,8 @@ class FSM(object):
         
         if self.protocol is not None:
             self.protocol.closeConnection()
+        # Remove from connections list
+        if self.bgpPeering: self.bgpPeering.connectionClosed(self.protocol)
     
 
 class BGP(protocol.Protocol):
