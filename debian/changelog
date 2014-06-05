@@ -1,3 +1,10 @@
+pybal (1.06) precise; urgency=low
+
+  * Fix daemonization stdio issues
+  * Fix BGP bugs on unclean session close
+
+ -- Brandon Black <bblack@wikimedia.org>  Thu, 05 Jun 2014 15:01:13 +0000
+
 pybal (1.05) precise; urgency=low
 
   * DNSQuery changes:
