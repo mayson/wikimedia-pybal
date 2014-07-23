@@ -10,6 +10,7 @@ from pybal import monitor
 from twisted.internet import reactor, protocol
 
 import random
+import socket
 
 class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.ReconnectingClientFactory):
     """
@@ -114,3 +115,5 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
             host = self.server.host
         
         reactor.connectTCP(host, self.server.port, self, *args, **kwargs)
+        connector.transport.getHandle().setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+

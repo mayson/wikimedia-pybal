@@ -1,3 +1,10 @@
+pybal (1.2+git20140410-0ubuntu1) UNRELEASED; urgency=medium
+
+  * Changed python2.6 dependency to python2.6+
+  * Added keepalive to idleConnection monitor
+
+ -- Igor A. Borisov <fizban@2gis-wb>  Wed, 23 Jul 2014 10:34:14 +0700
+
 pybal (1.2+git20140410-0) stable; urgency=low
 
   * Fixed runtime reconfiguration of upstream hosts.
