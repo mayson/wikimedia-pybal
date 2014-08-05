@@ -114,6 +114,6 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         except (TypeError, IndexError):
             host = self.server.host
         
-        reactor.connectTCP(host, self.server.port, self, *args, **kwargs)
+        connector = reactor.connectTCP(host, self.server.port, self, *args, **kwargs)
         connector.transport.getHandle().setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
