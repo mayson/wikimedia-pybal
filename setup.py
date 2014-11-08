@@ -1,6 +1,9 @@
 #!/usr/bin/env python
+try:
+    from setuptools import setup
+except ImportError:
+    from distutils.core import setup
 
-from distutils.core import setup
 
 setup(name="pybal",
     version="0.1",
@@ -10,4 +13,5 @@ setup(name="pybal",
     url="http://wikitech.wikimedia.org/view/Pybal",
     packages=['pybal', 'pybal.monitors'],
     requires=['twisted'],
+    test_suite='tests',
     )
