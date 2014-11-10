@@ -38,6 +38,7 @@ class IPVSManager:
 
     DryRun = True
 
+    @classmethod
     def modifyState(cls, cmdList):
         """
         Changes the state using a supplied list of commands (by invoking ipvsadm)
@@ -50,9 +51,8 @@ class IPVSManager:
         return reactor.spawnProcess(ipvsProcessProtocol, cls.ipvsPath, [cls.ipvsPath, '-R'])
 
         # FIXME: Do something with this deferred
-
-    modifyState = classmethod(modifyState)
     
+    @staticmethod
     def subCommandService(service):
         """
         Returns a partial command / parameter list as a single string,
@@ -74,8 +74,8 @@ class IPVSManager:
             service = ' %s:%d' % service[1:3]
         
         return protocol + service
-    subCommandService = staticmethod(subCommandService)
     
+    @staticmethod
     def subCommandServer(server):
         """
         Returns a partial command / parameter list as a single string,
@@ -86,20 +86,20 @@ class IPVSManager:
         """
         
         return '-r %s' % (server.ip or server.host)
-    subCommandServer = staticmethod(subCommandServer)
     
+    @staticmethod
     def commandClearServiceTable():
         """Returns an ipvsadm command to clear the current service table."""
         
         return '-C'
-    commandClearServiceTable = staticmethod(commandClearServiceTable)
     
+    @classmethod
     def commandRemoveService(cls, service):
         """Returns an ipvsadm command to remove a single service."""
         
         return '-D ' + cls.subCommandService(service)
-    commandRemoveService = classmethod(commandRemoveService)
     
+    @classmethod
     def commandAddService(cls, service):
         """
         Returns an ipvsadm command to add a specified service.
@@ -115,8 +115,8 @@ class IPVSManager:
             cmd += ' -s ' + service[3]
             
         return cmd
-    commandAddService = classmethod(commandAddService)
     
+    @classmethod
     def commandRemoveServer(cls, service, server):
         """
         Returns an ipvsadm command to remove a server from a service.
@@ -127,8 +127,8 @@ class IPVSManager:
         """
                 
         return " ".join(['-d', cls.subCommandService(service), cls.subCommandServer(server)])
-    commandRemoveServer = classmethod(commandRemoveServer)
     
+    @classmethod
     def commandAddServer(cls, service, server):
         """
         Returns an ipvsadm command to add a server to a service.
@@ -145,8 +145,8 @@ class IPVSManager:
             cmd += ' -w %d' % server.weight
 
         return cmd
-    commandAddServer = classmethod(commandAddServer)
     
+    @classmethod
     def commandEditServer(cls, service, server):
         """
         Returns an ipvsadm command to edit the parameters of a server.
@@ -163,7 +163,6 @@ class IPVSManager:
             cmd += ' -w %d' % server.weight
         
         return cmd
-    commandEditServer = classmethod(commandEditServer)
 
 class LVSService:
     """
