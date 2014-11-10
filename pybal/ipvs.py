@@ -5,7 +5,28 @@ Copyright (C) 2006-2012 by Mark Bergsma <mark@nedworks.org>
 LVS state/configuration classes for PyBal
 """
 
-import os
+from twisted.internet import reactor, defer, protocol, error
+
+class IPVSProcessProtocol(protocol.ProcessProtocol):
+    def __init__(self, cmdList):
+        super(IPVSProcessProtocol, self).__init__()
+
+        self.stderr = ""
+        self.cmdList = cmdList
+
+    def connectionMade(self):
+        # Send the ipvsadm commands
+        self.transport.writeSequence(self.cmdList)
+        self.transport.closeStdin()
+
+    def errReceived(self, data):
+        self.stderr += data
+
+    def processExited(self, reason):
+        if reason.check(error.ProcessTerminated):
+            print "ipvsadm exited with status %d when executing cmdlist %s" % (reason.value.exitCode, self.cmdList)
+            print "ipvsadm stderr output:"
+            print self.stderr
 
 class IPVSManager:
     """
@@ -23,16 +44,13 @@ class IPVSManager:
         """
         
         print cmdList
-        if cls.DryRun: return
-        
-        command = [cls.ipvsPath, '-R']
-        stdin = os.popen(" ".join(command), 'w')
-        for line in cmdList:
-            stdin.write(line + '\n')
-        stdin.close()
-        
-        # FIXME: Check return code and act on failure
-        
+        if cls.DryRun: return defer.succeed(0)
+
+        ipvsProcessProtocol = IPVSProcessProtocol(cmdList)
+        return reactor.spawnProcess(ipvsProcessProtocol, cls.ipvsPath, [cls.ipvsPath, '-R'])
+
+        # FIXME: Do something with this deferred
+
     modifyState = classmethod(modifyState)
     
     def subCommandService(service):
