@@ -1,2 +1,0 @@
-PyBal is a LVS monitor. It monitors Squid or Apache servers and adapts
-LVS state based on the results. PyBal was created for use by Wikimedia.
