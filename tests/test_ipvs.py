@@ -9,14 +9,20 @@
 import unittest
 
 import pybal.ipvs
+import pybal.util
+import pybal.pybal
 
 
 class ServerStub(object):
     """Test stub for `pybal.Server`."""
-    def __init__(self, host, ip=None, weight=None):
+    def __init__(self, host, ip=None, weight=None, port=None):
         self.host = host
         self.ip = ip
         self.weight = weight
+        self.port = port
+
+    def __hash__(self):
+        return hash((self.host, self.ip, self.weight, self.port))
 
 
 class IPVSManagerTestCase(unittest.TestCase):
@@ -102,3 +108,100 @@ class IPVSManagerTestCase(unittest.TestCase):
         subcommand = pybal.ipvs.IPVSManager.commandEditServer(service, server)
         self.assertEquals(
             subcommand, '-e -t [2620::123]:443 -r localhost -w 25')
+
+
+class LVSServiceTestCase(unittest.TestCase):
+    """Test case for `pybal.ipvs.LVSService`."""
+
+    @classmethod
+    def setUpClass(cls):
+        def stubbedModifyState(cls, cmdList):
+            cls.cmdList = cmdList
+
+        cls.origModifyState = pybal.ipvs.IPVSManager.modifyState
+        setattr(pybal.ipvs.IPVSManager, 'modifyState',
+                classmethod(stubbedModifyState))
+
+    @classmethod
+    def tearDownClass(cls):
+        pybal.ipvs.IPVSManager.modifyState = cls.origModifyState
+
+    def setUp(self):
+        self.config = pybal.util.ConfigDict({'dryrun': 'true'})
+        self.service = ('tcp', '127.0.0.1', 80, 'rr')
+        self.server = ServerStub('localhost', port=8080)
+        pybal.pybal.BGPFailover.prefixes.clear()
+
+    def testConstructor(self):
+        """Test `LVSService.__init__`."""
+        with self.assertRaises(ValueError):
+            service = ('invalid-protocol', '127.0.0.1', 80, 'rr')
+            pybal.ipvs.LVSService('invalid-protocol', service, self.config)
+
+        with self.assertRaises(ValueError):
+            service = ('tcp', '127.0.0.1', 80, 'invalid-scheduler')
+            pybal.ipvs.LVSService('invalid-scheduler', service, self.config)
+
+        self.config['bgp'] = 'true'
+        pybal.ipvs.LVSService('http', self.service, self.config)
+        self.assertItemsEqual(pybal.pybal.BGPFailover.prefixes, {(1, 1)})
+
+    def testService(self):
+        """Test `LVSService.service`."""
+        lvs_service = pybal.ipvs.LVSService('http', self.service, self.config)
+        self.assertEquals(lvs_service.service(), self.service)
+
+    def testCreateService(self):
+        """Test `LVSService.createService`."""
+        lvs_service = pybal.ipvs.LVSService('http', self.service, self.config)
+        self.assertEquals(lvs_service.ipvsManager.cmdList,
+                          ['-D -t 127.0.0.1:80', '-A -t 127.0.0.1:80 -s rr'])
+
+    def testAssignServers(self):
+        """Test `LVSService.assignServers`."""
+        lvs_service = pybal.ipvs.LVSService('http', self.service, self.config)
+        old_servers = {ServerStub('a'), ServerStub('b'), ServerStub('c')}
+        new_servers = {ServerStub('c'), ServerStub('d'), ServerStub('e')}
+        for server in old_servers:
+            lvs_service.addServer(server)
+        lvs_service.ipvsManager.cmdList = []
+        lvs_service.assignServers(new_servers)
+        self.assertEquals(
+            sorted(lvs_service.ipvsManager.cmdList),
+            ['-a -t 127.0.0.1:80 -r %s' % s for s in 'cde'] +
+            ['-d -t 127.0.0.1:80 -r %s' % s for s in 'abc']
+        )
+
+    def testAddServer(self):
+        """Test `LVSService.addServer`."""
+        lvs_service = pybal.ipvs.LVSService('http', self.service, self.config)
+        lvs_service.addServer(self.server)
+        self.assertTrue(self.server.pooled)
+        self.assertEquals(lvs_service.ipvsManager.cmdList,
+                          ['-a -t 127.0.0.1:80 -r localhost'])
+        lvs_service.addServer(self.server)
+        self.assertEquals(lvs_service.ipvsManager.cmdList,
+                          ['-e -t 127.0.0.1:80 -r localhost'])
+
+    def testRemoveServer(self):
+        """Test `LVSService.removeServer`."""
+        lvs_service = pybal.ipvs.LVSService('http', self.service, self.config)
+        lvs_service.addServer(self.server)
+        lvs_service.removeServer(self.server)
+        self.assertFalse(self.server.pooled)
+        self.assertEquals(lvs_service.ipvsManager.cmdList,
+                          ['-d -t 127.0.0.1:80 -r localhost'])
+
+    def testInitServer(self):
+        """Test `LVSService.initServer`."""
+        lvs_service = pybal.ipvs.LVSService('http', self.service, self.config)
+        lvs_service.initServer(self.server)
+        self.assertEquals(self.server.port, 80)
+
+    def testGetDepoolThreshold(self):
+        """Test `LVSService.getDepoolThreshold`."""
+        lvs = pybal.ipvs.LVSService('test', self.service, self.config)
+        self.assertEquals(lvs.getDepoolThreshold(), 0.5)
+        self.config['depool-threshold'] = 0.25
+        lvs = pybal.ipvs.LVSService('test', self.service, self.config)
+        self.assertEquals(lvs.getDepoolThreshold(), 0.25)
