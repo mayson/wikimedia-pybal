@@ -19,20 +19,14 @@ class LogFileTestCase(unittest.TestCase):
 
     TIMESTAMP_REGEXP = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+'
 
-    @classmethod
-    def setUpClass(cls):
-        file_handle, cls.path = tempfile.mkstemp('.pybal.test.log')
-        os.close(file_handle)
-
-    @classmethod
-    def tearDownClass(cls):
-        os.unlink(cls.path)
-
     def setUp(self):
+        file_handle, self.path = tempfile.mkstemp('.pybal.test.log')
+        os.close(file_handle)
         self.log_file = pybal.util.LogFile(self.path)
 
     def tearDown(self):
         self.log_file.file.close()
+        os.unlink(self.path)
 
     def testWrite(self):
         """Test `LogFile.write`."""

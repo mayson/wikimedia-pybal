@@ -14,5 +14,5 @@ setup(
     url="http://wikitech.wikimedia.org/view/Pybal",
     packages=['pybal', 'pybal.monitors'],
     requires=['twisted'],
-    test_suite='tests',
-    )
+    test_suite='pybal.test',
+)

@@ -2,4 +2,4 @@ pybal.egg-info
 *.pyc
 .tox
 /.coverage
-/htmlcov
+_trial_temp

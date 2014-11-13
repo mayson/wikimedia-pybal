@@ -113,24 +113,21 @@ class IPVSManagerTestCase(unittest.TestCase):
 class LVSServiceTestCase(unittest.TestCase):
     """Test case for `pybal.ipvs.LVSService`."""
 
-    @classmethod
-    def setUpClass(cls):
-        def stubbedModifyState(cls, cmdList):
-            cls.cmdList = cmdList
-
-        cls.origModifyState = pybal.ipvs.IPVSManager.modifyState
-        setattr(pybal.ipvs.IPVSManager, 'modifyState',
-                classmethod(stubbedModifyState))
-
-    @classmethod
-    def tearDownClass(cls):
-        pybal.ipvs.IPVSManager.modifyState = cls.origModifyState
-
     def setUp(self):
         self.config = pybal.util.ConfigDict({'dryrun': 'true'})
         self.service = ('tcp', '127.0.0.1', 80, 'rr')
         self.server = ServerStub('localhost', port=8080)
         pybal.pybal.BGPFailover.prefixes.clear()
+
+        def stubbedModifyState(cls, cmdList):
+            cls.cmdList = cmdList
+
+        self.origModifyState = pybal.ipvs.IPVSManager.modifyState
+        setattr(pybal.ipvs.IPVSManager, 'modifyState',
+                classmethod(stubbedModifyState))
+
+    def tearDown(self):
+        pybal.ipvs.IPVSManager.modifyState = self.origModifyState
 
     def testConstructor(self):
         """Test `LVSService.__init__`."""
