@@ -98,8 +98,11 @@ class MonitoringProtocol(object):
         val = eval(self.configuration[self.__name__.lower() + '.' + optionname], locals, globals)
         if type(val) == str:
             return val
-        elif type(val) == list and reduce(lambda x, y: type(x) == str and y, val):
-            # Checked that each list member is a string
+        elif (isinstance(val, list)
+              and all(isinstance(x, str) for x in val)
+              and val):
+            # Checked that each list member is a string and that list is not
+            # empty.
             return val
         else:
             raise ValueError, "Value of %s is not a string or stringlist" % optionname
