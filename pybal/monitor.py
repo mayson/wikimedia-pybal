@@ -13,19 +13,20 @@ class MonitoringProtocol(object):
     abstract methods, and some commonly useful functions  
     """
     
-    def __init__(self, coordinator, server, configuration={}):
+    def __init__(self, coordinator, server, configuration={}, reactor=reactor):
         """Constructor"""
         
         self.coordinator = coordinator
         self.server = server
         self.configuration = configuration
         self.up = None    # None, False (Down) or True (Up)
+        self.reactor = reactor
     
         self.active = False
         self.firstCheck = True
 
         # Install cleanup handler
-        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
+        self.reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
     
     def run(self):
         """Start the monitoring"""
