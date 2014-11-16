@@ -2,7 +2,7 @@
 
 """
 PyBal
-Copyright (C) 2006-20012 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2014 by Mark Bergsma <mark@nedworks.org>
 
 LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 """

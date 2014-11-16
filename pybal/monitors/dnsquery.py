@@ -1,6 +1,6 @@
 """
 dns.py
-Copyright (C) 2012 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2012-2014 by Mark Bergsma <mark@nedworks.org>
 
 DNS Monitor class implementation for PyBal
 """
