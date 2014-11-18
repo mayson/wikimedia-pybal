@@ -6,26 +6,14 @@
   This module contains tests for `pybal.ipvs`.
 
 """
-import unittest
-
 import pybal.ipvs
 import pybal.util
 import pybal.pybal
 
-
-class ServerStub(object):
-    """Test stub for `pybal.Server`."""
-    def __init__(self, host, ip=None, weight=None, port=None):
-        self.host = host
-        self.ip = ip
-        self.weight = weight
-        self.port = port
-
-    def __hash__(self):
-        return hash((self.host, self.ip, self.weight, self.port))
+from .fixtures import PyBalTestCase, ServerStub
 
 
-class IPVSManagerTestCase(unittest.TestCase):
+class IPVSManagerTestCase(PyBalTestCase):
     """Test case for `pybal.ipvs.IPVSManager`."""
 
     def testSubCommandService(self):
@@ -110,13 +98,13 @@ class IPVSManagerTestCase(unittest.TestCase):
             subcommand, '-e -t [2620::123]:443 -r localhost -w 25')
 
 
-class LVSServiceTestCase(unittest.TestCase):
+class LVSServiceTestCase(PyBalTestCase):
     """Test case for `pybal.ipvs.LVSService`."""
 
     def setUp(self):
-        self.config = pybal.util.ConfigDict({'dryrun': 'true'})
+        super(LVSServiceTestCase, self).setUp()
+        self.config['dryrun'] = 'true'
         self.service = ('tcp', '127.0.0.1', 80, 'rr')
-        self.server = ServerStub('localhost', port=8080)
         pybal.pybal.BGPFailover.prefixes.clear()
 
         def stubbedModifyState(cls, cmdList):
@@ -175,10 +163,10 @@ class LVSServiceTestCase(unittest.TestCase):
         lvs_service.addServer(self.server)
         self.assertTrue(self.server.pooled)
         self.assertEquals(lvs_service.ipvsManager.cmdList,
-                          ['-a -t 127.0.0.1:80 -r localhost'])
+                          ['-a -t 127.0.0.1:80 -r 127.0.0.1'])
         lvs_service.addServer(self.server)
         self.assertEquals(lvs_service.ipvsManager.cmdList,
-                          ['-e -t 127.0.0.1:80 -r localhost'])
+                          ['-e -t 127.0.0.1:80 -r 127.0.0.1'])
 
     def testRemoveServer(self):
         """Test `LVSService.removeServer`."""
@@ -187,7 +175,7 @@ class LVSServiceTestCase(unittest.TestCase):
         lvs_service.removeServer(self.server)
         self.assertFalse(self.server.pooled)
         self.assertEquals(lvs_service.ipvsManager.cmdList,
-                          ['-d -t 127.0.0.1:80 -r localhost'])
+                          ['-d -t 127.0.0.1:80 -r 127.0.0.1'])
 
     def testInitServer(self):
         """Test `LVSService.initServer`."""

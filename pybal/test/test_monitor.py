@@ -12,28 +12,14 @@ import pybal.monitor
 import pybal.util
 import twisted.internet
 
-
-class StubCoordinator(object):
-    """Test stub for `pybal.pybal.Coordinator`."""
-
-    def __init__(self):
-        self.up = None
-        self.reason = None
-
-    def resultUp(self, monitor):
-        self.up = True
-
-    def resultDown(self, monitor, reason=None):
-        self.up = False
-        self.reason = reason
+from .fixtures import PyBalTestCase
 
 
-class MonitoringProtocolTestCase(unittest.TestCase):
+class MonitoringProtocolTestCase(PyBalTestCase):
     """Test case for `pybal.monitor.MonitoringProtocol`."""
 
     def setUp(self):
-        self.coordinator = StubCoordinator()
-        self.config = pybal.util.ConfigDict()
+        super(MonitoringProtocolTestCase, self).setUp()
         self.monitor = pybal.monitor.MonitoringProtocol(
             self.coordinator, None, self.config)
         self.monitor.__name__ = 'TestMonitor'

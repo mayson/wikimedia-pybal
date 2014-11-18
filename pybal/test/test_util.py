@@ -13,13 +13,16 @@ import os
 import pybal
 import pybal.util
 
+from .fixtures import PyBalTestCase
 
-class LogFileTestCase(unittest.TestCase):
+
+class LogFileTestCase(PyBalTestCase):
     """Test case for `pybal.util.LogFile`."""
 
     TIMESTAMP_REGEXP = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+'
 
     def setUp(self):
+        super(LogFileTestCase, self).setUp()
         file_handle, self.path = tempfile.mkstemp('.pybal.test.log')
         os.close(file_handle)
         self.log_file = pybal.util.LogFile(self.path)
@@ -49,11 +52,12 @@ class LogFileTestCase(unittest.TestCase):
             self.assertIn('test', f.read())
 
 
-class ConfigDictTestCase(unittest.TestCase):
+class ConfigDictTestCase(PyBalTestCase):
     """Test case for `pybal.util.ConfigDict`."""
 
     def setUp(self):
-        self.config = pybal.util.ConfigDict({
+        super(ConfigDictTestCase, self).setUp()
+        self.config.update({
             'int': '3',
             'truthy': 'true',
             'falsy': 'false',
