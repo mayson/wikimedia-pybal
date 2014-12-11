@@ -9,6 +9,7 @@
 import unittest
 
 import pybal.util
+import twisted.test.proto_helpers
 import twisted.trial.unittest
 
 
@@ -54,3 +55,4 @@ class PyBalTestCase(twisted.trial.unittest.TestCase):
         self.coordinator = StubCoordinator()
         self.config = pybal.util.ConfigDict()
         self.server = ServerStub(host='localhost', ip='127.0.0.1', port=80)
+        self.reactor = twisted.test.proto_helpers.MemoryReactor()

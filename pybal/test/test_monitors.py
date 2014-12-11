@@ -18,9 +18,11 @@ class IdleConnectionMonitoringProtocolTestCase(PyBalTestCase):
     """Test case for `pybal.monitors.IdleConnectionMonitoringProtocol`."""
 
     def setUp(self):
+        super(IdleConnectionMonitoringProtocolTestCase, self).setUp()
         self.config = pybal.util.ConfigDict()
         self.monitor = IdleConnectionMonitoringProtocol(
-            None, None, self.config)
+            self.coordinator, self.server, self.config)
+        self.monitor.reactor = self.reactor
 
     def testInit(self):
         """Test `IdleConnectionMonitoringProtocol.__init__`."""
@@ -39,4 +41,8 @@ class IdleConnectionMonitoringProtocolTestCase(PyBalTestCase):
 
     def testRun(self):
         """Test `IdleConnectionMonitoringProtocol.run`."""
-        pass
+        self.monitor.run()
+        connector = self.reactor.connectors.pop()
+        destination = connector.getDestination()
+        self.assertEquals((destination.host, destination.port),
+                          (self.server.host, self.server.port))
