@@ -46,3 +46,17 @@ class IdleConnectionMonitoringProtocolTestCase(PyBalTestCase):
         destination = connector.getDestination()
         self.assertEquals((destination.host, destination.port),
                           (self.server.host, self.server.port))
+
+    def testClientConnectionMade(self):
+        """Test `IdleConnectionMonitoringProtocol.clientConnectionMade`."""
+        self.monitor.run()
+        self.monitor.up = False
+        self.monitor.clientConnectionMade()
+        self.assertTrue(self.monitor.up)
+
+    def testBuildProtocol(self):
+        """Test `IdleConnectionMonitoringProtocol.buildProtocol`."""
+        self.monitor.run()
+        self.monitor.up = False
+        self.monitor.buildProtocol(None)
+        self.assertTrue(self.monitor.up)
