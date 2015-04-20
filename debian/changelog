@@ -1,3 +1,10 @@
+pybal (1.07) trusty; urgency=medium
+
+  * Fix monitors.runcommand to work with newer twisted versions
+  * Make the ipvsadm invocation non-blocking, also check the exit code
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Mon, 20 Apr 2015 09:58:00 +0200
+
 pybal (1.06) precise; urgency=low
 
   * Fix daemonization stdio issues
