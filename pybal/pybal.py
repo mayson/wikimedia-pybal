@@ -12,9 +12,14 @@ from __future__ import absolute_import
 import os, sys, signal, socket, random
 from pybal import ipvs, monitor, util
 
-from twisted.python import failure
+from twisted.python import failure, filepath
 from twisted.internet import reactor, defer
 from twisted.names import client, dns
+
+try:
+    from twisted.internet import inotify
+except ImportError:
+    inotify = None
 
 try:
     from pybal import bgp
@@ -277,6 +282,15 @@ class Coordinator:
         # Start a periodic server list update task
         from twisted.internet import task
         task.LoopingCall(self.loadServers).start(self.intvLoadServers)
+
+        # If configURL points to the local filesystem, use inotify
+        # to watch for config changes.
+        if inotify is not None and configURL.startswith('file://'):
+            notifier = inotify.INotify()
+            notifier.startReading()
+            path = filepath.FilePath(configURL[7:])
+            notifier.watch(path, callbacks=[self._configNotified])
+
     
     def __str__(self):
         return "[%s]" % self.lvsservice.name
@@ -396,6 +410,14 @@ class Coordinator:
         """
         
         print self, "Could not load configuration URL %s:" % configURL, fail.getErrorMessage()
+
+    def _configNotified(self, ignored, filepath, mask):
+        """
+        Called when INotify watch on configURL spots a change
+        in the configuration file.
+        """
+        self.loadServers()
+
 
     def _configReceived(self, configuration):
         """
