@@ -52,13 +52,16 @@ class ConfigDict(dict):
     
     def getboolean(self, key, default=None):
         try:
-            value = self[key].strip().lower()
+            value = self[key]
         except KeyError:
             if default is not None:
                 return default
             else:
                 raise
         else:
+            if value in (True, False):
+                return value
+            value = value.strip().lower()
             if value in ('t', 'true', 'y', 'yes', 'on', '1'):
                 return True
             elif value in ('f', 'false', 'n', 'no', 'off', '0'):
