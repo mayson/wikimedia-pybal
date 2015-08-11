@@ -11,4 +11,4 @@ __version__ = '1.6'
 USER_AGENT_STRING = 'PyBal/%s' % __version__
 
 __all__ = ('ipvs', 'monitor', 'pybal', 'util', 'monitors', 'bgp',
-           'USER_AGENT_STRING')
+           'config', 'USER_AGENT_STRING')

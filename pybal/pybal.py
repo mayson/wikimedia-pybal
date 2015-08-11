@@ -10,7 +10,7 @@ LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 from __future__ import absolute_import
 
 import os, sys, signal, socket, random
-from pybal import ipvs, monitor, util
+from pybal import ipvs, monitor, util, config
 
 from twisted.python import failure, filepath
 from twisted.internet import reactor, defer
@@ -30,58 +30,58 @@ class Server:
     """
     Class that maintains configuration and state of a single (real)server
     """
-    
+
     # Defaults
     DEF_STATE = True
     DEF_WEIGHT = 10
-    
+
     # Set of attributes allowed to be overridden in a server list
     allowedConfigKeys = [ ('host', str), ('weight', int), ('enabled', bool) ]
-        
+
     def __init__(self, host, lvsservice, addressFamily=None):
-        """Constructor"""        
-        
+        """Constructor"""
+
         self.host = host
         self.lvsservice = lvsservice
         if addressFamily:
             self.addressFamily = addressFamily
-        else: 
+        else:
             self.addressFamily = (':' in self.lvsservice.ip) and socket.AF_INET6 or socket.AF_INET
         self.ip = None
         self.port = 80
         self.ip4_addresses = set()
         self.ip6_addresses = set()
         self.monitors = set()
-        
+
         # A few invariants that SHOULD be maintained (but currently may not be):
         # P0: pooled => enabled /\ ready
         # P1: up => pooled \/ !enabled \/ !ready
         # P2: pooled => up \/ !canDepool
-        
+
         self.weight = self.DEF_WEIGHT
         self.up = False
         self.pooled = False
         self.enabled = True
         self.ready = False
         self.modified = None
-    
+
     def __eq__(self, other):
         return isinstance(other, Server) and self.host == other.host and self.lvsservice == other.lvsservice
-    
+
     def __hash__(self):
         return hash(self.host)
-    
+
     def addMonitor(self, monitor):
         """Adds a monitor instance to the set"""
 
         self.monitors.add(monitor)
-        
+
     def removeMonitors(self):
         """Removes all monitors"""
-        
+
         for monitor in self.monitors:
             monitor.stop()
-        
+
         self.monitors.clear()
 
     def resolveHostname(self):
@@ -89,7 +89,7 @@ class Server:
 
         timeout = [1, 2, 5]
         lookups = []
-        
+
         query = dns.Query(self.host, dns.A)
         lookups.append(client.lookupAddress(self.host, timeout
             ).addCallback(self._lookupFinished, socket.AF_INET, query))
@@ -99,7 +99,7 @@ class Server:
             ).addCallback(self._lookupFinished, socket.AF_INET6, query))
 
         return defer.DeferredList(lookups).addBoth(self._hostnameResolved)
-    
+
     def _lookupFinished(self, (answers, authority, additional), addressFamily, query):
         ips = set([socket.inet_ntop(addressFamily, r.payload.address)
                    for r in answers
@@ -114,23 +114,23 @@ class Server:
         #if self.ip:
         #    minTTL = min([r.ttl for r in answers
         #          if r.name == query.name and r.type == query.type])
-        
-        return ips   
+
+        return ips
 
     def _hostnameResolved(self, result):
         # Pick *1* main ip address to use. Prefer any existing one
         # if still available.
-        
+
         print "Resolved", self.host, "to addresses", " ".join(
-            list(self.ip4_addresses) + list(self.ip6_addresses)) 
-        
+            list(self.ip4_addresses) + list(self.ip6_addresses))
+
         ip_addresses = {
             socket.AF_INET:
                 self.ip4_addresses,
             socket.AF_INET6:
                 self.ip6_addresses
             }[self.addressFamily]
-        
+
         try:
             if not self.ip or self.ip not in ip_addresses:
                 self.ip = random.choice(list(ip_addresses))
@@ -151,9 +151,9 @@ class Server:
         """
 
         d = self.resolveHostname()
-        
+
         return d.addCallbacks(self._ready, self._initFailed, callbackArgs=[coordinator])
-    
+
     def _ready(self, result, coordinator):
         """
         Called when initialization has finished.
@@ -165,26 +165,26 @@ class Server:
         self.maintainState()
 
         self.createMonitoringInstances(coordinator)
-        
+
         return True
 
     def _initFailed(self, fail):
         """
         Called when initialization failed
         """
-        
+
         print "Initialization failed for server", self.host
-        
+
         assert self.ready == False
         self.maintainState()
-        
+
         return False # Continue on success callback chain
 
     def createMonitoringInstances(self, coordinator):
-        """Creates and runs monitoring instances for this Server"""        
-        
+        """Creates and runs monitoring instances for this Server"""
+
         lvsservice = self.lvsservice
-        
+
         try:
             monitorlist = eval(lvsservice.configuration['monitors'])
         except KeyError:
@@ -194,7 +194,7 @@ class Server:
         if type(monitorlist) != list:
             print "option 'monitors' in LVS service section", lvsservice.name, \
                 "is not a Python list."
-        else:                
+        else:
             for monitorname in monitorlist:
                 try:
                     monitormodule = getattr(__import__('pybal.monitors', fromlist=[monitorname.lower()], level=0), monitorname.lower())
@@ -208,14 +208,14 @@ class Server:
 
     def calcStatus(self):
         """AND quantification of monitor.up over all monitoring instances of a single Server"""
-        
+
         # Global status is up iff all monitors report up
         return reduce(lambda b,monitor: b and monitor.up, self.monitors, len(self.monitors) != 0)
-    
+
     def calcPartialStatus(self):
         """OR quantification of monitor.up over all monitoring instances of a single Server"""
-        
-        # Partial status is up iff one of the monitors reports up      
+
+        # Partial status is up iff one of the monitors reports up
         return reduce(lambda b,monitor: b or monitor.up, self.monitors, len(self.monitors) == 0)
 
     def textStatus(self):
@@ -225,7 +225,7 @@ class Server:
 
     def maintainState(self):
         """Maintains a few invariants on configuration changes"""
-        
+
         # P0
         if not self.enabled or not self.ready:
             self.pooled = False
@@ -239,12 +239,12 @@ class Server:
         for key, value in configuration.iteritems():
             if (key, type(value)) not in self.allowedConfigKeys:
                 del configuration[key]
-        
+
         # Overwrite configuration
         self.__dict__.update(configuration)
-        self.maintainState()        
-        self.modified = True    # Indicate that this instance previously existed  
-    
+        self.maintainState()
+        self.modified = True    # Indicate that this instance previously existed
+
     @classmethod
     def buildServer(cls, configuration, lvsservice):
         """
@@ -255,7 +255,7 @@ class Server:
         server = cls(configuration['host'], lvsservice) # create a new instance...
         server.merge(configuration)                     # ...and override attributes
         server.modified = False
-        
+
         return server
 
 class Coordinator:
@@ -263,38 +263,25 @@ class Coordinator:
     Class that coordinates the configuration, state and status reports
     for a single LVS instance
     """
-    
-    serverConfigURL = 'file:///etc/pybal/squids'
-    
+
+    serverConfigUrl = 'file:///etc/pybal/squids'
+
     intvLoadServers = 60
-    
-    def __init__(self, lvsservice, configURL):
+
+    def __init__(self, lvsservice, configUrl):
         """Constructor"""
-        
-        self.lvsservice = lvsservice
+
         self.servers = {}
+        self.lvsservice = lvsservice
         self.pooledDownServers = set()
         self.configHash = None
-        self.serverConfigURL = configURL
-
+        self.serverConfigUrl = configUrl
         self.serverInitDeferredList = defer.Deferred()
-        
-        # Start a periodic server list update task
-        from twisted.internet import task
-        task.LoopingCall(self.loadServers).start(self.intvLoadServers)
+        self.configObserver = config.ConfigurationObserver.fromUrl(self, configUrl)
 
-        # If configURL points to the local filesystem, use inotify
-        # to watch for config changes.
-        if inotify is not None and configURL.startswith('file://'):
-            notifier = inotify.INotify()
-            notifier.startReading()
-            path = filepath.FilePath(configURL[7:])
-            notifier.watch(path, callbacks=[self._configNotified])
-
-    
     def __str__(self):
         return "[%s]" % self.lvsservice.name
-    
+
     def assignServers(self):
         """
         Takes a new set of servers (as a host->Server dict) and
@@ -304,7 +291,7 @@ class Coordinator:
         # Hand over enabled servers to LVSService
         self.lvsservice.assignServers(
             set([server for server in self.servers.itervalues() if server.pooled]))
-    
+
     def refreshModifiedServers(self):
         """
         Calculates the status of every server that existed before the config change.
@@ -312,7 +299,7 @@ class Coordinator:
 
         for server in self.servers.itervalues():
             if not server.modified: continue
-            
+
             server.up = server.calcStatus()
             server.pooled = server.enabled and server.up
 
@@ -321,11 +308,11 @@ class Coordinator:
         Accepts a 'down' notification status result from a single monitoring instance
         and acts accordingly.
         """
-        
+
         server = monitor.server
-        
+
         print self, "Monitoring instance %s reports server %s (%s) down:" % (monitor.name(), server.host, server.textStatus()), (reason or '(reason unknown)')
-        
+
         if server.up:
             server.up = False
             if server.pooled: self.depool(server)
@@ -335,39 +322,39 @@ class Coordinator:
         Accepts a 'up' notification status result from a single monitoring instance
         and acts accordingly.
         """
-        
+
         server = monitor.server
-    
+
         if not server.up and server.calcStatus():
             print self, "Server %s (%s) is up" % (server.host, server.textStatus())
             server.up = True
-            if server.enabled and server.ready: self.repool(server)    
+            if server.enabled and server.ready: self.repool(server)
 
     def depool(self, server):
         """Depools a single Server, if possible"""
-        
+
         assert server.pooled
-        
+
         if self.canDepool():
             self.lvsservice.removeServer(server)
             self.pooledDownServers.discard(server)
         else:
             self.pooledDownServers.add(server)
             print self, 'Could not depool server', server.host, 'because of too many down!'
-    
+
     def repool(self, server):
         """
         Repools a single server. Also depools previously downed Servers that could
         not be depooled then because of too many hosts down.
         """
-        
+
         assert server.enabled and server.ready
-        
+
         if not server.pooled:
             self.lvsservice.addServer(server)
         else:
             print self, "Leaving previously pooled but down server", server.host, "pooled"
-        
+
         # If it had been pooled in down state before, remove it from the list
         self.pooledDownServers.discard(server)
 
@@ -377,108 +364,52 @@ class Coordinator:
 
     def canDepool(self):
         """Returns a boolean denoting whether another server can be depooled"""
-        
+
         # Construct a list of servers that have status 'down'
         downServers = [server for server in self.servers.itervalues() if not server.up]
-        
+
         # The total amount of pooled servers may never drop below a configured threshold
         return len(self.servers) - len(downServers) >= len(self.servers) * self.lvsservice.getDepoolThreshold()
-    
-    def loadServers(self, configURL=None):
-        """Periodic task to load a new server list/configuration file from a specified URL."""
-        
-        configURL = configURL or self.serverConfigURL
-        
-        if configURL.startswith('http://'):
-            # Retrieve file over HTTP
-            from twisted.web import client
-            client.getPage(configURL
-                ).addCallback(self._configReceived
-                ).addErrback(self._configLoadError, configURL)
-        elif configURL.startswith('file://'):
-            # Read the text file
-            try:
-                self._configReceived(open(configURL[7:], 'r').read())
-            except IOError, e:
-                print e
-        else:
-            raise ValueError, "Invalid configuration URL"
 
-    def _configLoadError(self, fail, configURL):
-        """
-        Called when client.getPage could not load the configuration file.
-        """
-        
-        print self, "Could not load configuration URL %s:" % configURL, fail.getErrorMessage()
-
-    def _configNotified(self, ignored, filepath, mask):
-        """
-        Called when INotify watch on configURL spots a change
-        in the configuration file.
-        """
-        self.loadServers()
-
-
-    def _configReceived(self, configuration):
-        """
-        Compares the MD5 hash of the new configuration vs. the old one,
-        and calls _parseConfig if it's different.
-        """
-        
-        import hashlib
-        newHash = hashlib.md5()
-        newHash.update(configuration)
-        if not self.configHash or self.configHash.digest() != newHash.digest():
-            print self, 'New configuration received'
-            
-            self.configHash = newHash        
-            self._parseConfig(configuration.splitlines())
-    
-    def _parseConfig(self, lines):
+    def onConfigUpdate(self, config):
         """Parses the server list and changes the state accordingly."""
-        
+
         delServers = self.servers.copy()    # Shallow copy
-        
+
         initList = []
-             
-        for line in lines:
-            line = line.rstrip('\n').strip()
-            if line.startswith('#') or line == '': continue
-            
-            serverdict = eval(line)
-            if type(serverdict) == dict and 'host' in serverdict:
-                host = serverdict['host']
-                if host in self.servers:
-                    # Existing server. merge
-                    server = delServers.pop(host)
-                    server.merge(serverdict)            
-                    print self, "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight)
-                else:
-                    # New server
-                    server = Server.buildServer(serverdict, self.lvsservice)
-                    # Initialize with LVS service specific configuration 
-                    self.lvsservice.initServer(server)
-                    self.servers[host] = server
-                    initList.append(server.initialize(self))
-                    print self, "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", host, server.weight )
-                
+
+        for hostName, hostConfig in config.items():
+            if hostName in self.servers:
+                # Existing server. merge
+                server = delServers.pop(hostName)
+                server.merge(hostConfig)
+                print self, "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", hostName, server.weight)
+            else:
+                # New server
+                server = Server.buildServer(hostConfig, self.lvsservice)
+                # Initialize with LVS service specific configuration
+                self.lvsservice.initServer(server)
+                self.servers[hostName] = server
+                initList.append(server.initialize(self))
+                print self, "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", hostName, server.weight )
+
         # Remove old servers
-        for host, server in delServers.iteritems():
-            print self, "Removing server %s (no longer found in new configuration)" % host
+        for hostName, server in delServers.iteritems():
+            print self, "Removing server %s (no longer found in new configuration)" % hostName
             server.destroy()
-            del self.servers[host]
-        
+            del self.servers[hostName]
+
         # Calculate up status for previously existing, modified servers
         self.refreshModifiedServers()
-        
+
         # Wait for all new servers to finish initializing
         self.serverInitDeferredList = defer.DeferredList(initList).addCallback(self._serverInitDone)
-    
+
     def _serverInitDone(self, result):
         """Called when all (new) servers have finished initializing"""
 
         print self, "Initialization complete"
-        
+
         # Assign the updated list of enabled servers to the LVSService instance
         self.assignServers()
 
@@ -490,19 +421,19 @@ class BGPFailover:
 
     def __init__(self, globalConfig):
         self.globalConfig = globalConfig
-        
+
         if self.globalConfig.getboolean('bgp', False):
             self.setup()
 
-    def setup(self):        
+    def setup(self):
         try:
             self.bgpPeering = bgp.NaiveBGPPeering(myASN=self.globalConfig.getint('bgp-local-asn'),
                                                   peerAddr=self.globalConfig.get('bgp-peer-address'))
-            
+
             asPath = [int(asn) for asn in self.globalConfig.get('bgp-as-path', str(self.bgpPeering.myASN)).split()]
             attributes = {}
 
-            try:                
+            try:
                 attributes[(bgp.AFI_INET, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict([
                     bgp.OriginAttribute(),
                     bgp.ASPathAttribute(asPath),
@@ -510,7 +441,7 @@ class BGPFailover:
             except KeyError:
                 if (bgp.AFI_INET, bgp.SAFI_UNICAST) in BGPFailover.prefixes:
                     raise ValueError("IPv4 BGP NextHop (global configuration variable 'bgp-nexthop-ipv4') not set")
-            
+
             try:
                 attributes[(bgp.AFI_INET6, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict([
                     bgp.OriginAttribute(),
@@ -524,7 +455,7 @@ class BGPFailover:
             advertisements = set([bgp.Advertisement(prefix, attributes[af], af)
                                   for af in attributes.keys()
                                   for prefix in BGPFailover.prefixes.get(af, set())])
-            
+
             self.bgpPeering.setEnabledAddressFamilies(set(attributes.keys()))
             self.bgpPeering.setAdvertisements(advertisements)
             self.bgpPeering.automaticStart()
@@ -539,35 +470,35 @@ class BGPFailover:
                 reactor.listenTCP(bgp.PORT, bgp.BGPServerFactory({self.bgpPeering.peerAddr: self.bgpPeering}))
             except Exception:
                 pass
-    
+
     def closeSession(self, peering):
         print "Clearing session to", peering.peerAddr
         # Withdraw all announcements
         peering.setAdvertisements(set())
         return peering.manualStop()
-    
+
     @classmethod
     def addPrefix(cls, prefix):
         try:
-            if ':' not in prefix: 
+            if ':' not in prefix:
                 cls.prefixes.setdefault((bgp.AFI_INET, bgp.SAFI_UNICAST), set()).add(bgp.IPv4IP(prefix))
             else:
                 cls.prefixes.setdefault((bgp.AFI_INET6, bgp.SAFI_UNICAST), set()).add(bgp.IPv6IP(prefix))
         except NameError:
             # bgp not imported
             pass
-                
+
 def parseCommandLine(configuration):
     """
     Parses the command line arguments, and sets configuration options
     in dictionary configuration.
     """
-    
+
     import sys, getopt
 
     options = 'hnd'
     long_options = [ 'help', 'dryrun', 'debug' ]
-    
+
     for o, a in getopt.gnu_getopt(sys.argv, options, long_options)[0]:
         if o in ('-h', '--help'):
             printHelp()
@@ -579,7 +510,7 @@ def parseCommandLine(configuration):
 
 def printHelp():
     """Prints a help screen"""
-    
+
     print "Usage:"
     print "\tpybal [ options ]"
     print "\t\t-h\t--help\t\tThis help message"
@@ -650,11 +581,11 @@ def createDaemon():
 
     return( 0 )
 
-def writePID(): 
+def writePID():
     """
     Writes the current processes's PID into /var/run/pybal.pid
     """
-    
+
     try:
         file('/var/run/pybal.pid', 'w').write(str(os.getpid()) + '\n')
     except Exception:
@@ -664,21 +595,21 @@ def terminate():
     """
     Cleans up on exit
     """
-        
+
     # Remove any PID file
     print "Removing PID file /var/run/pybal.pid"
     try:
         os.unlink('/var/run/pybal.pid')
     except OSError:
         pass
-    
+
     print "Exiting..."
 
 def sighandler(signum, frame):
     """
     Signal handler
     """
-    
+
     if signum == signal.SIGTERM:
         terminate()
     elif signum == signal.SIGHUP:
@@ -691,23 +622,23 @@ def installSignalHandlers():
     """
     Installs Unix signal handlers, e.g. to run terminate() on TERM
     """
-    
+
     signals = [signal.SIGTERM, signal.SIGHUP]
-    
+
     for sig in signals:
         signal.signal(sig, sighandler)
 
 def main():
     from ConfigParser import SafeConfigParser
-   
+
     # Read the configuration file
     configFile = '/etc/pybal/pybal.conf'
-    
+
     config = SafeConfigParser()
     config.read(configFile)
-    
+
     services, cliconfig = {}, {}
-    
+
     # Parse the command line
     parseCommandLine(cliconfig)
 
@@ -715,16 +646,16 @@ def main():
         if not cliconfig.get('debug', False):
             # Become a daemon
             createDaemon()
-            
+
             # Write PID file
             writePID()
-            
+
             # Open a logfile
             try:
                 logfile = '/var/log/pybal.log'
                 sys.stdout = sys.stderr = util.LogFile(logfile)
             except Exception:
-                print "Unable to open logfile %s, using stdout" % logfile  
+                print "Unable to open logfile %s, using stdout" % logfile
 
         # Install signal handlers
         installSignalHandlers()
@@ -737,20 +668,20 @@ def main():
                     config.get(section, 'ip'),
                     config.getint(section, 'port'),
                     config.get(section, 'scheduler'))
-                
+
             # Read the custom configuration options of the LVS section
             configdict = util.ConfigDict(config.items(section))
-            
+
             # Override with command line options
             configdict.update(cliconfig)
-            
+
             if section != 'global':
                 services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
                 crd = Coordinator(services[section],
-                    configURL=config.get(section, 'config'))
+                    configUrl=config.get(section, 'config'))
                 print "Created LVS service '%s'" % section
-        
-        
+
+
         # Set up BGP
         try:
             configdict = util.ConfigDict(config.items('global'))
