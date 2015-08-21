@@ -16,6 +16,7 @@ import re
 
 from twisted.internet import task
 from twisted.python import log
+from twisted.web import client
 
 
 def get_subclasses(cls):
@@ -134,6 +135,23 @@ class FileConfigurationObserver(ConfigurationObserver):
         self.lastFileStat = fileStat
         with open(self.filePath, 'rt') as f:
             rawConfig = f.read()
+        config = self.parseConfig(rawConfig)
+        if config != self.lastConfig:
+            self.coordinator.onConfigUpdate(config)
+            self.lastConfig = config
+
+
+class HttpConfigurationObserver(FileConfigurationObserver):
+    """ConfigurationObserver for configuration served over HTTP."""
+
+    urlScheme = 'http://'
+
+    def reloadConfig(self):
+        dfd = client.getPage(self.configUrl)
+        dfd.addCallbacks(self.onConfigReceived, self.logError)
+        return dfd
+
+    def onConfigReceived(self, rawConfig):
         config = self.parseConfig(rawConfig)
         if config != self.lastConfig:
             self.coordinator.onConfigUpdate(config)
