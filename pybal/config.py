@@ -9,6 +9,7 @@
 from __future__ import absolute_import
 
 import ast
+import json
 import logging
 
 from twisted.internet import inotify, defer, reactor, task
