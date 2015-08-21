@@ -11,10 +11,11 @@ from __future__ import absolute_import
 import ast
 import json
 import logging
+import os
+import re
 
-from twisted.internet import inotify, defer, reactor, task
-from twisted.names import client, dns
-from twisted.python import failure, filepath
+from twisted.internet import task
+from twisted.python import log
 
 
 def get_subclasses(cls):
@@ -42,28 +43,57 @@ class ConfigurationObserver(object):
 
 
 class FileConfigurationObserver(ConfigurationObserver):
-    """ConfigurationObserver for local configuration files."""
+    """ConfigurationObserver for local configuration files.
+
+    Handles the 'file://' scheme.
+    For example: 'file:///etc/pybal/pools/apache'.
+
+    If the file name ends in '.json', treat it as a new-style configuration
+    file, and expect the following format:
+
+        {
+          "pybal-test2002.codfw.wmnet": {
+            "enabled": false,
+            "weight": 10
+          },
+          "pybal-test2003.codfw.wmnet": {
+            "enabled": true,
+            "weight": 5
+          }
+        }
+
+    If the file name does NOT end in '.json', treat it as an old-style (eval)
+    configuration file, and expect the following format:
+
+        { 'host': 'pybal-test2002.codfw.wmnet', 'weight':10, 'enabled': True }
+        { 'host': 'pybal-test2003.codfw.wmnet', 'weight':10, 'enabled': True }
+
+    """
 
     urlScheme = 'file://'
 
-    def __init__(self, coordinator, configUrl):
+    def __init__(self, coordinator, configUrl, reloadIntervalSeconds=1):
         self.coordinator = coordinator
-        self.filePath = filepath.FilePath(configUrl[len(self.urlScheme):])
-        self.notifier = inotify.INotify()
-        self.notifier.startReading()
-        self.notifier.watch(filepath.FilePath(self.filePath.dirname()),
-                            mask=(inotify.IN_MODIFY| inotify.IN_ATTRIB),
-                            callbacks=[self.onNotify])
-        self.reloadConfig()
+        self.configUrl = configUrl
+        self.filePath = configUrl[len(self.urlScheme):]
+        self.reloadIntervalSeconds = reloadIntervalSeconds
+        self.lastFileStat = None
+        self.lastConfig = None
+        self.reloadTask = task.LoopingCall(self.reloadConfig)
+        self.startObserving()
 
-    def onNotify(self, ignored, filePath, mask):
-        if filePath == self.filePath:
-            try:
-                self.reloadConfig()
-            except Exception:
-                logging.exception('Unable to reload config!')
-                task.deferLater(reactor, 1, self.onNotify, ignored,
-                                filePath, mask)
+    def startObserving(self):
+        """Start (or re-start) watching the configuration file for changes."""
+        self.reloadTask \
+            .start(self.reloadIntervalSeconds) \
+            .addErrback(self.logError)
+
+    def logError(self, failure):
+        """Log an error and re-schedule the configuration file monitor."""
+        failure.trap(Exception)
+        log.err(failure)
+        self.fileStat = None
+        self.startObserving()
 
     def parseLegacyConfig(self, fp):
         """Parse a legacy (eval) configuration file."""
@@ -74,10 +104,13 @@ class FileConfigurationObserver(ConfigurationObserver):
                 if not line or line.startswith('#'):
                     continue
                 server = ast.literal_eval(line)
-                host = server['host']
+                host = server.pop('host')
                 config[host] = server
-            except (KeyError, SyntaxError, TypeError, ValueError):
-                logging.exception('Bad configuration line: %s', line)
+            except (KeyError, SyntaxError, TypeError, ValueError) as ex:
+                # We catch exceptions here (rather than simply allow them to
+                # bubble up to FileConfigurationObserver.logError) because we
+                # want to try and parse as much of the file as we can.
+                log.err(ex, 'Bad configuration line: %s' % line)
                 continue
         return config
 
@@ -86,9 +119,17 @@ class FileConfigurationObserver(ConfigurationObserver):
         return json.load(fp)
 
     def reloadConfig(self):
-        with self.filePath.open() as f:
-            if self.filePath.path.endswith('.json'):
+        """If the configuration file has changed, re-read it. If the parsed
+        configuration object has changed, notify the coordinator."""
+        fileStat = os.stat(self.filePath)
+        if fileStat == self.lastFileStat:
+            return
+        self.lastFileStat = fileStat
+        with open(self.filePath, 'rt') as f:
+            if self.filePath.endswith('.json'):
                 config = self.parseJsonConfig(f)
             else:
                 config = self.parseLegacyConfig(f)
-        self.coordinator.onConfigUpdate(config)
+        if config != self.lastConfig:
+            self.coordinator.onConfigUpdate(config)
+            self.lastConfig = config

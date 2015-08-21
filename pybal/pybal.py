@@ -246,14 +246,14 @@ class Server:
         self.modified = True    # Indicate that this instance previously existed
 
     @classmethod
-    def buildServer(cls, configuration, lvsservice):
+    def buildServer(cls, hostName, configuration, lvsservice):
         """
         Factory method which builds a Server instance from a
         dictionary of (allowed) configuration attributes
         """
 
-        server = cls(configuration['host'], lvsservice) # create a new instance...
-        server.merge(configuration)                     # ...and override attributes
+        server = cls(hostName, lvsservice) # create a new instance...
+        server.merge(configuration)        # ...and override attributes
         server.modified = False
 
         return server
@@ -386,7 +386,7 @@ class Coordinator:
                 print self, "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", hostName, server.weight)
             else:
                 # New server
-                server = Server.buildServer(hostConfig, self.lvsservice)
+                server = Server.buildServer(hostName, hostConfig, self.lvsservice)
                 # Initialize with LVS service specific configuration
                 self.lvsservice.initServer(server)
                 self.servers[hostName] = server
