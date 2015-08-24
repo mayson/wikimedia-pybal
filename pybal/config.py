@@ -93,12 +93,13 @@ class FileConfigurationObserver(ConfigurationObserver):
         failure.trap(Exception)
         log.err(failure)
         self.fileStat = None
-        self.startObserving()
+        if not self.reloadTask.running:
+            self.startObserving()
 
-    def parseLegacyConfig(self, fp):
+    def parseLegacyConfig(self, rawConfig):
         """Parse a legacy (eval) configuration file."""
         config = {}
-        for line in fp:
+        for line in rawConfig.split('\n'):
             try:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -114,9 +115,15 @@ class FileConfigurationObserver(ConfigurationObserver):
                 continue
         return config
 
-    def parseJsonConfig(self, fp):
+    def parseJsonConfig(self, rawConfig):
         """Parse a JSON pool configuration file."""
-        return json.load(fp)
+        return json.loads(rawConfig)
+
+    def parseConfig(self, rawConfig):
+        if self.configUrl.endswith('.json'):
+            return self.parseJsonConfig(rawConfig)
+        else:
+            return self.parseLegacyConfig(rawConfig)
 
     def reloadConfig(self):
         """If the configuration file has changed, re-read it. If the parsed
@@ -126,10 +133,8 @@ class FileConfigurationObserver(ConfigurationObserver):
             return
         self.lastFileStat = fileStat
         with open(self.filePath, 'rt') as f:
-            if self.filePath.endswith('.json'):
-                config = self.parseJsonConfig(f)
-            else:
-                config = self.parseLegacyConfig(f)
+            rawConfig = f.read()
+        config = self.parseConfig(rawConfig)
         if config != self.lastConfig:
             self.coordinator.onConfigUpdate(config)
             self.lastConfig = config
