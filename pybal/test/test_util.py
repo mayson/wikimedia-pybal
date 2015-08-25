@@ -52,6 +52,26 @@ class LogFileTestCase(PyBalTestCase):
             self.assertIn('test', f.read())
 
 
+class MiscUtilTestCase(PyBalTestCase):
+    """Test case for misc. methods in `pybal.util`."""
+
+    def testGetSubclasses(self):
+        """Test case for `pybal.util.get_subclasses`."""
+
+        class DummyParent(object):
+            pass
+
+        class DummyChild(DummyParent):
+            pass
+
+        class DummyGrandChild(DummyChild):
+            pass
+
+        subclasses = pybal.util.get_subclasses(DummyParent)
+        subclasses.sort(key=lambda cls: cls.__name__)
+        self.assertEqual(subclasses, [DummyChild, DummyGrandChild])
+
+
 class ConfigDictTestCase(PyBalTestCase):
     """Test case for `pybal.util.ConfigDict`."""
 

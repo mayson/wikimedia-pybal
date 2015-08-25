@@ -18,19 +18,7 @@ from twisted.internet import task
 from twisted.python import log
 from twisted.web import client
 
-
-def get_subclasses(cls):
-    """Return a list of all direct and indirect subclasses of a given class."""
-    subclasses = []
-    for subclass in cls.__subclasses__():
-        subclasses.append(subclass)
-        subclasses.extend(get_subclasses(subclass))
-    return subclasses
-
-
-class PyBalConfigurationError(Exception):
-    """Raised when PyBal encounters a configuration it does not understand."""
-    pass
+from pybal.util import get_subclasses
 
 
 class ConfigurationObserver(object):

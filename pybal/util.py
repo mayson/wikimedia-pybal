@@ -8,6 +8,15 @@ import sys
 import datetime
 
 
+def get_subclasses(cls):
+    """Return a list of all direct and indirect subclasses of a given class."""
+    subclasses = []
+    for subclass in cls.__subclasses__():
+        subclasses.append(subclass)
+        subclasses.extend(get_subclasses(subclass))
+    return subclasses
+
+
 class LogFile(object):
     def __init__(self, filename):
         self.filename = filename
