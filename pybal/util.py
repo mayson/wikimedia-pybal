@@ -39,7 +39,7 @@ class LogFile(object):
 
 class ConfigDict(dict):
 
-    def getint(self, key, default=None):
+    def getInt(self, key, default=None):
         try:
             return int(self[key])
         except KeyError:
@@ -49,7 +49,7 @@ class ConfigDict(dict):
                 raise
         # do not intercept ValueError
 
-    def getboolean(self, key, default=None):
+    def getBool(self, key, default=None):
         try:
             value = self[key]
         except KeyError:
@@ -68,7 +68,7 @@ class ConfigDict(dict):
             else:
                 raise ValueError
 
-    def getfloat(self, key, default=None):
+    def getFloat(self, key, default=None):
         try:
             return float(self[key])
         except KeyError:

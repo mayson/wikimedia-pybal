@@ -77,10 +77,10 @@ class MonitoringProtocol(object):
         print "[%s %s] %s (%s): %s" % (self.server.lvsservice.name, self.__name__, self.server.host, self.server.textStatus(), text)
     
     def _getConfigBool(self, optionname, default=None):
-        return self.configuration.getboolean('%s.%s' % (self.__name__.lower(), optionname), default)
+        return self.configuration.getBool('%s.%s' % (self.__name__.lower(), optionname), default)
             
     def _getConfigInt(self, optionname, default=None):
-        return self.configuration.getint('%s.%s' % (self.__name__.lower(), optionname), default)
+        return self.configuration.getInt('%s.%s' % (self.__name__.lower(), optionname), default)
     
     def _getConfigString(self, optionname):
         val = self.configuration[self.__name__.lower() + '.' + optionname]

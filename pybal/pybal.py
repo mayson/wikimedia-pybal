@@ -422,12 +422,12 @@ class BGPFailover:
     def __init__(self, globalConfig):
         self.globalConfig = globalConfig
 
-        if self.globalConfig.getboolean('bgp', False):
+        if self.globalConfig.getBool('bgp', False):
             self.setup()
 
     def setup(self):
         try:
-            self.bgpPeering = bgp.NaiveBGPPeering(myASN=self.globalConfig.getint('bgp-local-asn'),
+            self.bgpPeering = bgp.NaiveBGPPeering(myASN=self.globalConfig.getInt('bgp-local-asn'),
                                                   peerAddr=self.globalConfig.get('bgp-peer-address'))
 
             asPath = [int(asn) for asn in self.globalConfig.get('bgp-as-path', str(self.bgpPeering.myASN)).split()]
@@ -666,7 +666,7 @@ def main():
                 cfgtuple = (
                     config.get(section, 'protocol'),
                     config.get(section, 'ip'),
-                    config.getint(section, 'port'),
+                    config.getInt(section, 'port'),
                     config.get(section, 'scheduler'))
 
             # Read the custom configuration options of the LVS section

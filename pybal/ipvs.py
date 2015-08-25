@@ -191,9 +191,9 @@ class LVSService:
 
         self.configuration = configuration
 
-        self.ipvsManager.DryRun = configuration.getboolean('dryrun', False)
+        self.ipvsManager.DryRun = configuration.getBool('dryrun', False)
 
-        if self.configuration.getboolean('bgp', False):
+        if self.configuration.getBool('bgp', False):
             from pybal import BGPFailover
             # Add service ip to the BGP announcements
             BGPFailover.addPrefix(self.ip)
@@ -263,4 +263,4 @@ class LVSService:
     def getDepoolThreshold(self):
         """Returns the threshold below which no more down servers will be depooled"""
 
-        return self.configuration.getfloat('depool-threshold', .5)
+        return self.configuration.getFloat('depool-threshold', .5)
