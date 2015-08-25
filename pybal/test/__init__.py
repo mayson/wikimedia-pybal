@@ -8,6 +8,7 @@
 """
 # flake8: noqa
 
-from .test_util import *
+from .test_config import *
 from .test_ipvs import *
 from .test_monitor import *
+from .test_util import *
