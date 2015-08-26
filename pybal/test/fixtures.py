@@ -47,6 +47,9 @@ class StubCoordinator(object):
         self.up = False
         self.reason = reason
 
+    def onConfigUpdate(self, config):
+        self.config = config
+
 
 class StubLVSService(object):
     """Test stub for `pybal.ipvs.LVSService`."""

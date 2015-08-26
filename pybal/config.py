@@ -69,7 +69,6 @@ class FileConfigurationObserver(ConfigurationObserver):
         self.lastFileStat = None
         self.lastConfig = None
         self.reloadTask = task.LoopingCall(self.reloadConfig)
-        self.startObserving()
 
     def startObserving(self):
         """Start (or re-start) watching the configuration file for changes."""
@@ -95,7 +94,8 @@ class FileConfigurationObserver(ConfigurationObserver):
                     continue
                 server = ast.literal_eval(line)
                 host = server.pop('host')
-                config[host] = server
+                config[host] = {'enabled': server['enabled'],
+                                'weight': server['weight']}
             except (KeyError, SyntaxError, TypeError, ValueError) as ex:
                 # We catch exceptions here (rather than simply allow them to
                 # bubble up to FileConfigurationObserver.logError) because we

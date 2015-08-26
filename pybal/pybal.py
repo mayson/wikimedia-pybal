@@ -278,6 +278,7 @@ class Coordinator:
         self.serverConfigUrl = configUrl
         self.serverInitDeferredList = defer.Deferred()
         self.configObserver = config.ConfigurationObserver.fromUrl(self, configUrl)
+        self.configObserver.startObserving()
 
     def __str__(self):
         return "[%s]" % self.lvsservice.name
