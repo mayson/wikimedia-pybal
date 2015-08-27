@@ -11,7 +11,7 @@ import unittest
 import pybal.util
 import twisted.test.proto_helpers
 import twisted.trial.unittest
-
+from twisted.internet import defer
 
 class ServerStub(object):
     """Test stub for `pybal.Server`."""
@@ -62,6 +62,24 @@ class StubLVSService(object):
         self.port = port
         self.scheduler = scheduler
         self.configuration = configuration
+
+
+class MockClientGetPage(object):
+    def __init__(self, data):
+        self.return_value = data
+
+    def getPage(self, url):
+        d = defer.Deferred()
+        d.callback(self.return_value)
+        return d
+
+    def addErr(self, msg):
+        self.errMsg = ValueError(msg)
+
+    def getPageError(self, url):
+        d = defer.Deferred()
+        d.errback(self.errMsg)
+        return d
 
 
 class PyBalTestCase(twisted.trial.unittest.TestCase):

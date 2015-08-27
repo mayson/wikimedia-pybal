@@ -12,10 +12,11 @@ import os
 
 import pybal
 import pybal.config
+import json
 
 
-from .fixtures import PyBalTestCase
-
+from .fixtures import PyBalTestCase, MockClientGetPage
+from twisted.python.failure import Failure
 
 class DummyConfigurationObserver(pybal.config.ConfigurationObserver):
     urlScheme = 'dummy://'
@@ -115,3 +116,49 @@ class FileConfigurationObserverTestCase(PyBalTestCase):
         # Needed for nose to pass... it doesn't really get raised
         self.assertEquals(self.observer.parseLegacyConfig(invalid_config), {})
         self.flushLoggedErrors(KeyError)
+
+
+class HttpConfigurationObserverTestCase(PyBalTestCase):
+    data = """
+    {
+    "mw1200": { "enabled": true, "weight": 10 },
+    "mw1201": {"enabled": false, "weight": 1 }
+    }
+    """
+
+    def setUp(self):
+        super(HttpConfigurationObserverTestCase, self).setUp()
+        self.observer = self.getObserver()
+
+    def getObserver(self, url='http://example.com/pybal-config/example.json'):
+        return pybal.config.HttpConfigurationObserver(
+            self.coordinator, url)
+
+    def testReloadConfig(self):
+        """Test `HttpConfigurationObserver.reloadConfig`"""
+        m = MockClientGetPage(self.data)
+        with mock.patch('twisted.web.client.getPage', m.getPage):
+            self.observer.reloadConfig()
+        self.assertEquals(self.coordinator.config, json.loads(self.data))
+
+        errMsg = 'Hamsters!'
+        m.addErr(errMsg)
+        self.observer.logError = mock.MagicMock()
+        with mock.patch('twisted.web.client.getPage', m.getPageError):
+            self.observer.reloadConfig()
+        # Configuration hasn't changed
+        self.assertEquals(self.coordinator.config, json.loads(self.data))
+        # Error was logged
+        self.assertTrue(self.observer.logError.called)
+
+    def testOnConfigReceived(self):
+        """Test `HttpConfigurationObserver.OnConfigReceived`"""
+        self.observer.lastConfig = json.loads(self.data)
+        self.coordinator.config = None
+        # No change in config means no onConfigUpdate
+        self.observer.onConfigReceived(self.data)
+        self.assertEquals(self.coordinator.config, None)
+        # Config gets updated
+        self.observer.lastConfig['mw1201']["enabled"] = True
+        self.observer.onConfigReceived(self.data)
+        self.assertEquals(self.coordinator.config, json.loads(self.data))
