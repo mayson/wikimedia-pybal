@@ -6,17 +6,18 @@
   This module contains tests for `pybal.config`.
 
 """
-import mock
-import tempfile
+import json
 import os
+import tempfile
+
+from twisted.python.failure import Failure
+import mock
 
 import pybal
 import pybal.config
-import json
-
 
 from .fixtures import PyBalTestCase, MockClientGetPage
-from twisted.python.failure import Failure
+
 
 class DummyConfigurationObserver(pybal.config.ConfigurationObserver):
     urlScheme = 'dummy://'
@@ -92,8 +93,10 @@ class FileConfigurationObserverTestCase(PyBalTestCase):
           "mw1201": {"enabled": false, "weight": 1 }
         }
         """
-        expected_config = {'mw1200': {'enabled': True, 'weight': 10},
-                           'mw1201': {'enabled': False, 'weight': 1}}
+        expected_config = {
+            'mw1200': {'enabled': True, 'weight': 10},
+            'mw1201': {'enabled': False, 'weight': 1},
+        }
         self.assertEquals(self.observer.parseJsonConfig(json_config),
                           expected_config)
         invalid_config = "{[]"
@@ -102,17 +105,19 @@ class FileConfigurationObserverTestCase(PyBalTestCase):
 
     def testParseLegacyConfig(self):
         """Test `FileConfigurationObserver.parseLegacyConfig`"""
-        legacy_config = """
-{'host': 'mw1200', 'weight': 10, 'enabled': True }
-{'host': 'mw1201', 'weight': 1, 'enabled': False }
-        """
-        expected_config = {'mw1200': {'enabled': True, 'weight': 10},
-                           'mw1201': {'enabled': False, 'weight': 1}}
+        legacy_config = '\n'.join((
+            "{'host': 'mw1200', 'weight': 10, 'enabled': True }",
+            "{'host': 'mw1201', 'weight': 1, 'enabled': False }",
+        ))
+        expected_config = {
+            'mw1200': {'enabled': True, 'weight': 10},
+            'mw1201': {'enabled': False, 'weight': 1},
+        }
         self.assertEquals(self.observer.parseLegacyConfig(legacy_config),
                           expected_config)
-        invalid_config="""
-{'host': 'something'}
-        """
+
+        invalid_config= "{'host': 'something'}\n"
+
         # Needed for nose to pass... it doesn't really get raised
         self.assertEquals(self.observer.parseLegacyConfig(invalid_config), {})
         self.flushLoggedErrors(KeyError)
