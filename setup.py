@@ -15,7 +15,7 @@ except ImportError:
 
 setup(
     name='PyBal',
-    version='1.6',
+    version='1.8',
     license='GPLv2+',
     author='Mark Bergsma',
     author_email='mark@wikimedia.org',
@@ -42,6 +42,7 @@ setup(
     ),
     requires=(
         'twisted',
+        'mock',
     ),
     test_suite='pybal.test',
     zip_safe=False,

@@ -1,3 +1,27 @@
+pybal (1.08) jessie-wikimedia; urgency=low
+
+  * Lint fixes for I695ce535 and I526d5737
+  * Add unit tests for HttpConfigurationObserver
+  * Add unit tests for FileConfigurationObserver
+  * Initial commit of ConfigurationObserver unit tests
+  * Migrate get_subclasses to pybal.util; add unit tests
+  * Lint: make ConfigDict methods lowerCamelCase
+  * Add HttpConfigurationObserver
+  * Make FileConfigurationObserver easier to extend
+  * Make util.py PEP8-compliant
+  * Drop inotify; improve documentation and handling of configuration formats
+  * Add missing import
+  * Introduce ConfigurationObserver class
+  * Add '__version__' and 'USER_AGENT_STRING'
+  * Use INotify to watch for configuration file changes
+  * Make util.getboolean handle booleans gracefully
+  * Fix travis and coverall configuration
+  * Don't omit 'test'
+  * Fix .travis.yml test invocation command
+  * Report code coverage to coveralls
+
+ -- Ori Livneh <ori@wikimedia.org>  Mon, 31 Aug 2015 19:09:00 +0000
+
 pybal (1.07) trusty; urgency=medium
 
   * Fix monitors.runcommand to work with newer twisted versions
