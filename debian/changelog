@@ -1,3 +1,9 @@
+pybal (1.09) jessie-wikimedia; urgency=low
+
+  * Revert `Lint: make ConfigDict methods lowerCamelCase`
+
+ -- Ori Livneh <ori@wikimedia.org>  Tue, 1 Sep 2015 05:37:00 +0000
+
 pybal (1.08) jessie-wikimedia; urgency=low
 
   * Lint fixes for I695ce535 and I526d5737

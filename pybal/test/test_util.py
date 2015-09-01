@@ -85,29 +85,29 @@ class ConfigDictTestCase(PyBalTestCase):
         })
 
     def testGetInt(self):
-        """Test `ConfigDict.getInt()`."""
-        self.assertEqual(self.config.getInt('int'), 3)
-        self.assertEqual(self.config.getInt('missing', 4), 4)
+        """Test `ConfigDict.getint()`."""
+        self.assertEqual(self.config.getint('int'), 3)
+        self.assertEqual(self.config.getint('missing', 4), 4)
         with self.assertRaises(KeyError):
-            self.config.getInt('missing')
+            self.config.getint('missing')
         with self.assertRaises(ValueError):
-            self.config.getInt('truthy')
+            self.config.getint('truthy')
 
     def testGetFloat(self):
-        """Test `ConfigDict.getFloat()`."""
-        self.assertEqual(self.config.getFloat('float'), 3.14)
-        self.assertEqual(self.config.getFloat('missing', True), True)
+        """Test `ConfigDict.getfloat()`."""
+        self.assertEqual(self.config.getfloat('float'), 3.14)
+        self.assertEqual(self.config.getfloat('missing', True), True)
         with self.assertRaises(KeyError):
-            self.config.getFloat('missing')
+            self.config.getfloat('missing')
         with self.assertRaises(ValueError):
-            self.config.getFloat('falsy')
+            self.config.getfloat('falsy')
 
-    def testGetBool(self):
-        """Test `ConfigDict.getBool()`."""
-        self.assertEqual(self.config.getBool('truthy'), True)
-        self.assertEqual(self.config.getBool('falsy'), False)
-        self.assertEqual(self.config.getBool('missing', True), True)
+    def testGetBoolean(self):
+        """Test `ConfigDict.getboolean()`."""
+        self.assertEqual(self.config.getboolean('truthy'), True)
+        self.assertEqual(self.config.getboolean('falsy'), False)
+        self.assertEqual(self.config.getboolean('missing', True), True)
         with self.assertRaises(KeyError):
-            self.config.getBool('missing')
+            self.config.getboolean('missing')
         with self.assertRaises(ValueError):
-            self.config.getBool('float')
+            self.config.getboolean('float')
