@@ -6,7 +6,7 @@
   notifempty
   postrotate
     if [ -e /var/run/pybal.pid ]; then
-      invoke-rc.d --quiet pybal force-reload > /dev/null
+      invoke-rc.d --quiet pybal reload > /dev/null
     fi
   endscript
 }
