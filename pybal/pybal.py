@@ -10,7 +10,7 @@ LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 from __future__ import absolute_import
 
 import os, sys, signal, socket, random
-from pybal import ipvs, monitor, util, config
+from pybal import ipvs, monitor, util, config, instrumentation
 
 from twisted.python import failure, filepath
 from twisted.internet import reactor, defer
@@ -25,6 +25,7 @@ try:
     from pybal import bgp
 except ImportError:
     pass
+
 
 class Server:
     """
@@ -245,6 +246,11 @@ class Server:
         self.maintainState()
         self.modified = True    # Indicate that this instance previously existed
 
+    def dumpState(self):
+        """Dump current state of the server"""
+        return {'pooled': self.pooled, 'weight': self.weight,
+                'up': self.up, 'enabled': self.enabled}
+
     @classmethod
     def buildServer(cls, hostName, configuration, lvsservice):
         """
@@ -257,6 +263,7 @@ class Server:
         server.modified = False
 
         return server
+
 
 class Coordinator:
     """
@@ -413,6 +420,7 @@ class Coordinator:
 
         # Assign the updated list of enabled servers to the LVSService instance
         self.assignServers()
+
 
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
@@ -629,6 +637,7 @@ def installSignalHandlers():
     for sig in signals:
         signal.signal(sig, sighandler)
 
+
 def main():
     from ConfigParser import SafeConfigParser
 
@@ -681,7 +690,7 @@ def main():
                 crd = Coordinator(services[section],
                     configUrl=config.get(section, 'config'))
                 print "Created LVS service '%s'" % section
-
+                instrumentation.PoolsRoot.addPool(crd.lvsservice.name, crd)
 
         # Set up BGP
         try:
@@ -690,6 +699,13 @@ def main():
             configdict = util.ConfigDict()
         configdict.update(cliconfig)
         bgpannouncement = BGPFailover(configdict)
+
+        # Run the web server for instrumentation
+        if configdict.get('instrumentation', False):
+            from twisted.web.server import Site
+            port = configdict.get('instrumentation_port', 9090)
+            factory = Site(instrumentation.ServerRoot())
+            reactor.listenTCP(port, factory)
 
         reactor.run()
     finally:

@@ -13,6 +13,7 @@ import twisted.test.proto_helpers
 import twisted.trial.unittest
 from twisted.internet import defer
 
+
 class ServerStub(object):
     """Test stub for `pybal.Server`."""
     def __init__(self, host, ip=None, port=None, weight=None, lvsservice=None):
@@ -25,12 +26,19 @@ class ServerStub(object):
         self.ip6_addresses = set()
         if ip is not None:
             (self.ip6_addresses if ':' in ip else self.ip4_addresses).add(ip)
+        self.up = False
+        self.pooled = False
 
     def textStatus(self):
         return '...'
 
     def __hash__(self):
         return hash((self.host, self.ip, self.weight, self.port))
+
+    def dumpState(self):
+        """Dump current state of the server"""
+        return {'pooled': self.pooled, 'weight': self.weight,
+                'up': self.up}
 
 
 class StubCoordinator(object):
@@ -39,6 +47,7 @@ class StubCoordinator(object):
     def __init__(self):
         self.up = None
         self.reason = None
+        self.servers = {}
 
     def resultUp(self, monitor):
         self.up = True
@@ -56,7 +65,8 @@ class StubLVSService(object):
 
     def __init__(self, name, (protocol, ip, port, scheduler), configuration):
         self.name = name
-        self.servers = set()
+
+        self.servers = {}
         self.protocol = protocol
         self.ip = ip
         self.port = port
