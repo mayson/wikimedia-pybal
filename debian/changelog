@@ -1,3 +1,9 @@
+pybal (1.10) jessie-wikimedia; urgency=medium
+
+  * Use reload instead of force-reload when running logrotate
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Wed, 16 Sep 2015 17:13:51 +0200
+
 pybal (1.09) jessie-wikimedia; urgency=low
 
   * Revert `Lint: make ConfigDict methods lowerCamelCase`
