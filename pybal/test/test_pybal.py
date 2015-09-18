@@ -22,10 +22,12 @@ class TestBaseUtils(PyBalTestCase):
             parseCommandLine(config)
             self.assertEquals(config, {'debug': True, 'dryrun': True})
         testargs.append('--badarg')
-        # Bad argument raises an exception
+        # Bad argument exits with code 2
         with mock.patch.object(sys, 'argv', testargs):
-            self.assertRaises(Exception, parseCommandLine, config)
-        # Asking for the help exits with 0 code
+            with self.assertRaises(SystemExit) as exc:
+                parseCommandLine(config)
+                self.assertEquals(exc.exception.code, 2)
+        # Asking for the help exits with code 0
         testargs = ['pybal', '--help']
         with mock.patch.object(sys, 'argv', testargs):
             with self.assertRaises(SystemExit) as exc:

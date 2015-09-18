@@ -503,20 +503,19 @@ def parseCommandLine(configuration):
     Parses the command line arguments, and sets configuration options
     in dictionary configuration.
     """
-
-    import sys, getopt
-
-    options = 'hnd'
-    long_options = [ 'help', 'dryrun', 'debug' ]
-
-    for o, a in getopt.gnu_getopt(sys.argv, options, long_options)[0]:
-        if o in ('-h', '--help'):
-            printHelp()
-            sys.exit(0)
-        elif o in ('-n', '--dryrun'):
-            configuration['dryrun'] = True
-        elif o in ('-d', '--debug'):
-            configuration['debug'] = True
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Load Balancer manager script.",
+        epilog="See <https://wikitech.wikimedia.org/wiki/PyBal> for more."
+    )
+    parser.add_argument("-n", "--dryrun", action="store_true",
+                        help="Dry Run mode, do not actually update.")
+    parser.add_argument("-d", "--debug", action="store_true",
+                        help="Debug mode, run in foreground, "
+                        "log to stdout LVS configuration/state, "
+                        "print commands")
+    args = parser.parse_args()
+    configuration.update(args.__dict__)
 
 
 def printHelp():
