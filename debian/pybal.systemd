@@ -1,0 +1,8 @@
+[Unit]
+Description=PyBal LVS monitor
+
+[Service]
+LimitNOFILE=infinity
+ExecStart=/usr/sbin/pybal
+Restart=always
+RestartSec=10s
