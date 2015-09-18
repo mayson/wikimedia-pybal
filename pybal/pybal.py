@@ -497,6 +497,7 @@ class BGPFailover:
             # bgp not imported
             pass
 
+
 def parseCommandLine(configuration):
     """
     Parses the command line arguments, and sets configuration options
