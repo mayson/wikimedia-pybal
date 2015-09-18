@@ -38,12 +38,16 @@ class IPVSManager(object):
 
     DryRun = True
 
+    Debug = False
+
     @classmethod
     def modifyState(cls, cmdList):
         """Changes the state using a supplied list of commands (by
         invoking ipvsadm)."""
 
-        print cmdList
+        if cls.Debug:
+            print cmdList
+
         if cls.DryRun:
             return defer.succeed(0)
 
@@ -192,6 +196,7 @@ class LVSService:
         self.configuration = configuration
 
         self.ipvsManager.DryRun = configuration.getboolean('dryrun', False)
+        self.ipvsManager.Debug = configuration.getboolean('debug', False)
 
         if self.configuration.getboolean('bgp', False):
             from pybal import BGPFailover
