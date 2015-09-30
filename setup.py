@@ -42,6 +42,9 @@ setup(
     ),
     requires=(
         'twisted',
+        'PyOpenSSL'
+    ),
+    tests_require=(
         'mock',
     ),
     test_suite='pybal.test',

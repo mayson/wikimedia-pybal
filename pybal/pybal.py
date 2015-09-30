@@ -11,7 +11,7 @@ from __future__ import absolute_import
 
 import os, sys, signal, socket, random
 import logging
-from pybal import ipvs, util, config, instrumentation
+from pybal import ipvs, util, config, etcd, instrumentation
 
 from twisted.python import failure
 from twisted.internet import reactor, defer

@@ -6,9 +6,8 @@ The pybal package contains all PyBal modules
 """
 import test
 
-__version__ = '1.6'
+from .version import *
 
-USER_AGENT_STRING = 'PyBal/%s' % __version__
 
 __all__ = ('ipvs', 'monitor', 'pybal', 'util', 'monitors', 'bgp',
            'config', 'instrumentation', 'USER_AGENT_STRING')
