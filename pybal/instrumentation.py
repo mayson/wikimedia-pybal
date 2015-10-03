@@ -73,7 +73,7 @@ class PoolsRoot(Resource):
         if wantJson(request):
             return json.dumps(pools)
         else:
-            return "\n".join(pools)
+            return "\n".join(pools) + "\n"
 
 
 class PoolServers(Resource):
@@ -102,7 +102,7 @@ class PoolServers(Resource):
             return json.dumps(res)
         else:
             res = ""
-            for hostname, server in self.coordinator.server.items():
+            for hostname, server in self.coordinator.servers.items():
                 res += "{}:\t{}\n".format(hostname, server.textStatus())
             return res
 
@@ -122,4 +122,4 @@ class PoolServer(Resource):
         if wantJson(request):
             return json.dumps(self.server.dumpState())
         else:
-            return self.server.textStatus()
+            return self.server.textStatus() + "\n"
