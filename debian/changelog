@@ -1,3 +1,11 @@
+pybal (1.11) jessie-wikimedia; urgency=medium
+
+  * Systemd support, removal of unneeded code (daemonization, file logging)
+  * Added instrumentation HTTP server
+  * ProxyFetch now supports specifying the http_status
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Sat, 03 Oct 2015 11:09:42 +0200
+
 pybal (1.10) jessie-wikimedia; urgency=medium
 
   * Use reload instead of force-reload when running logrotate
