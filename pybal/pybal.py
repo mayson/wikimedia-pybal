@@ -518,33 +518,17 @@ def parseCommandLine(configuration):
     configuration.update(args.__dict__)
 
 
-def printHelp():
-    """Prints a help screen"""
-
-    print "Usage:"
-    print "\tpybal [ options ]"
-    print "\t\t-h\t--help\t\tThis help message"
-    print "\t\t-n\t--dryrun\tDry Run mode, do not actually update"
-    print "\t\t-d\t--debug\tDebug mode, print debug info to stdout"
-
-
-def terminate():
-    """
-    Cleans up on exit
-    """
-    print "Exiting..."
-
-
 def sighandler(signum, frame):
     """
     Signal handler
     """
-
-    if signum in [signal.SIGTERM, signal.SIGINT]:
-        terminate()
-    elif signum == signal.SIGHUP:
+    if signum == signal.SIGHUP:
         # TODO: reload config
         pass
+    else:
+        # Stop the reactor if it's running
+        if reactor.running:
+            reactor.stop()
 
 
 def installSignalHandlers():
@@ -614,7 +598,7 @@ def main():
 
         reactor.run()
     finally:
-        terminate()
+        print "Exiting..."
 
 if __name__ == '__main__':
     main()
