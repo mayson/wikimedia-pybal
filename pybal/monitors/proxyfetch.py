@@ -55,8 +55,8 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
 
         self.intvCheck = self._getConfigInt('interval', self.INTV_CHECK)
         self.toGET = self._getConfigInt('timeout', self.TIMEOUT_GET)
-        self.expectedStatus = self._getConfigInit('http_status',
-                                                  self.HTTP_STATUS)
+        self.expectedStatus = self._getConfigInt('http_status',
+                                                 self.HTTP_STATUS)
 
         self.checkCall = None
         self.getPageDeferred = defer.Deferred()
