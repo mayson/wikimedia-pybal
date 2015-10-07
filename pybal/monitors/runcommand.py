@@ -6,8 +6,10 @@ Monitor class implementations for PyBal
 """
 
 from pybal import monitor
+from pybal.util import log
 
 import os, sys, signal, errno
+import logging
 
 from twisted.internet import reactor, process, error
 
@@ -57,7 +59,7 @@ class ProcessGroupProcess(process.Process, object):
                 if e.errno == errno.EPERM:
                     self.proto.leftoverProcesses(False)
                 elif e.errno != errno.ESRCH:
-                    print "pgid:", pgid, "e:", e
+                    log.error("pgid: {} e:{}".format(pgid, e))
                     raise
             else:
                 self.proto.leftoverProcesses(True)
@@ -173,10 +175,11 @@ class RunCommandMonitoringProtocol(monitor.MonitoringProtocol):
         """
 
         if allKilled:
-            msg = "WARNING: Command %s %s left child processes behind, which have been killed!"
+            msg = "Command %s %s left child processes behind, which have been killed!"
         else:
-            msg = "WARNING: Command %s %s left child processes behind, and not all could be killed!"
-        self.report(msg % (self.command, str(self.arguments)))
+            msg = "Command %s %s left child processes behind, and not all could be killed!"
+        self.report(msg % (self.command, str(self.arguments)),
+                    level=logging.WARN)
 
     def _spawnProcess(self, processProtocol, executable, args=(),
                      env={}, path=None,

@@ -5,6 +5,9 @@ Copyright (C) 2006-2014 by Mark Bergsma <mark@nedworks.org>
 LVS state/configuration classes for PyBal
 """
 from twisted.internet import reactor, defer, protocol, error
+from . import util
+
+log = util.log
 
 
 class IPVSProcessProtocol(protocol.ProcessProtocol, object):
@@ -24,10 +27,9 @@ class IPVSProcessProtocol(protocol.ProcessProtocol, object):
 
     def processExited(self, reason):
         if reason.check(error.ProcessTerminated):
-            print("ipvsadm exited with status %d when executing cmdlist %s" %
-                  (reason.value.exitCode, self.cmdList))
-            print "ipvsadm stderr output:"
-            print self.stderr
+            log.error("ipvsadm exited with status %d when executing cmdlist %s" %
+                      (reason.value.exitCode, self.cmdList))
+            log.error("ipvsadm stderr output: {}".format(self.stderr))
 
 
 class IPVSManager(object):
@@ -242,7 +244,7 @@ class LVSService:
             cmdList = [self.ipvsManager.commandAddServer(self.service(),
                                                          server)]
         else:
-            print('WARNING: bug: adding already existing server to LVS')
+            log.warn('bug: adding already existing server to LVS')
             cmdList = [self.ipvsManager.commandEditServer(self.service(),
                                                           server)]
 

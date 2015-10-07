@@ -5,11 +5,14 @@ Copyright (C) 2006 by Mark Bergsma <mark@nedworks.org>
 Monitor class implementations for PyBal
 """
 
-from pybal import monitor
+from pybal import monitor, util
 
 from twisted.internet import reactor, defer
 from twisted.web import client
 from twisted.python.runtime import seconds
+import logging
+
+log = util.log
 
 
 class RedirHTTPPageGetter(client.HTTPPageGetter):
@@ -87,7 +90,7 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         """Periodically called method that does a single uptime check."""
 
         if not self.active:
-            print "WARNING: ProxyFetchMonitoringProtocol.check() called while active == False"
+            log.warn("ProxyFetchMonitoringProtocol.check() called while active == False")
             return
 
         # FIXME: Use GET as a workaround for a Twisted bug with HEAD/Content-length
@@ -127,7 +130,8 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         if failure.check(defer.CancelledError):
             return None
 
-        self.report('Fetch failed, %.3f s' % (seconds() - self.checkStartTime))
+        self.report('Fetch failed, %.3f s' % (seconds() - self.checkStartTime),
+                    level=logging.WARN)
 
         self._resultDown(failure.getErrorMessage())
 

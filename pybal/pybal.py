@@ -10,11 +10,14 @@ LVS Squid balancer/monitor for managing the Wikimedia Squid servers using LVS
 from __future__ import absolute_import
 
 import os, sys, signal, socket, random
-from pybal import ipvs, monitor, util, config, instrumentation
+import logging
+from pybal import ipvs, util, config, instrumentation
 
-from twisted.python import failure, filepath
+from twisted.python import failure
 from twisted.internet import reactor, defer
 from twisted.names import client, dns
+
+log = util.log
 
 try:
     from twisted.internet import inotify
@@ -122,8 +125,10 @@ class Server:
         # Pick *1* main ip address to use. Prefer any existing one
         # if still available.
 
-        print "Resolved", self.host, "to addresses", " ".join(
+        addr = " ".join(
             list(self.ip4_addresses) + list(self.ip6_addresses))
+        msg = "Resolved {} to addresses {}".format(self.host, addr)
+        log.debug(msg)
 
         ip_addresses = {
             socket.AF_INET:
@@ -173,8 +178,7 @@ class Server:
         """
         Called when initialization failed
         """
-
-        print "Initialization failed for server", self.host
+        log.error("Initialization failed for server {}".format(self.host))
 
         assert self.ready == False
         self.maintainState()
@@ -189,18 +193,21 @@ class Server:
         try:
             monitorlist = eval(lvsservice.configuration['monitors'])
         except KeyError:
-            print "LVS service", lvsservice.name, "does not have a 'monitors' configuration option set."
+            log.critical(
+                "LVS service {} does not have a 'monitors' configuration option set.".format(
+                    lvsservice.name)
+            )
             raise
 
         if type(monitorlist) != list:
-            print "option 'monitors' in LVS service section", lvsservice.name, \
-                "is not a Python list."
+            msg = "option 'monitors' in LVS service section {} is not a python list"
+            log.err(msg.format(lvsservice.name))
         else:
             for monitorname in monitorlist:
                 try:
                     monitormodule = getattr(__import__('pybal.monitors', fromlist=[monitorname.lower()], level=0), monitorname.lower())
                 except AttributeError:
-                    print "Monitor", monitorname, "does not exist."
+                    log.err("Monitor {} does not exist".format(monitorname))
                 else:
                     monitorclass = getattr(monitormodule, monitorname + 'MonitoringProtocol')
                     monitor = monitorclass(coordinator, self, lvsservice.configuration)
@@ -319,7 +326,12 @@ class Coordinator:
 
         server = monitor.server
 
-        print self, "Monitoring instance %s reports server %s (%s) down:" % (monitor.name(), server.host, server.textStatus()), (reason or '(reason unknown)')
+        data = {'service': self, 'monitor': monitor.name(),
+                'host': server.host, 'status': server.textStatus(),
+                'reason': (reason or '(reason unknown)')}
+        msg = "Monitoring instance {monitor} " \
+              "reports server {host} ({status}) down: {reason}"
+        log.error(msg.format(**data), system=self.lvsservice.name)
 
         if server.up:
             server.up = False
@@ -334,7 +346,9 @@ class Coordinator:
         server = monitor.server
 
         if not server.up and server.calcStatus():
-            print self, "Server %s (%s) is up" % (server.host, server.textStatus())
+            log.info("Server {} ({}) is up".format(server.host,
+                                                   server.textStatus()),
+                     system=self.lvsservice.name)
             server.up = True
             if server.enabled and server.ready: self.repool(server)
 
@@ -348,7 +362,8 @@ class Coordinator:
             self.pooledDownServers.discard(server)
         else:
             self.pooledDownServers.add(server)
-            print self, 'Could not depool server', server.host, 'because of too many down!'
+            msg = "Could not depool server {} because of too many down!"
+            log.error(msg.format(server.host), system=self.lvsservice.name)
 
     def repool(self, server):
         """
@@ -361,7 +376,8 @@ class Coordinator:
         if not server.pooled:
             self.lvsservice.addServer(server)
         else:
-            print self, "Leaving previously pooled but down server", server.host, "pooled"
+            msg = "Leaving previously pooled but down server {} pooled"
+            log.info(msg.format(server.host), system=self.lvsservice.name)
 
         # If it had been pooled in down state before, remove it from the list
         self.pooledDownServers.discard(server)
@@ -391,19 +407,29 @@ class Coordinator:
                 # Existing server. merge
                 server = delServers.pop(hostName)
                 server.merge(hostConfig)
-                print self, "Merged %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", hostName, server.weight)
+                data = {'status': (server.enabled and "enabled" or "disabled"),
+                        'host': hostName, 'weight': server.weight}
+                log.info(
+                    "Merged {status} server {host}, weight {weight}".format(**data),
+                    system=self.lvsservice.name
+                )
             else:
                 # New server
                 server = Server.buildServer(hostName, hostConfig, self.lvsservice)
+                data = {'status': (server.enabled and "enabled" or "disabled"),
+                        'host': hostName, 'weight': server.weight}
                 # Initialize with LVS service specific configuration
                 self.lvsservice.initServer(server)
                 self.servers[hostName] = server
                 initList.append(server.initialize(self))
-                print self, "New %s server %s, weight %d" % (server.enabled and "enabled" or "disabled", hostName, server.weight )
+                log.info(
+                    "New {status} server {host}, weight {weight}".format(**data),
+                    system=self.lvsservice.name
+                )
 
         # Remove old servers
         for hostName, server in delServers.iteritems():
-            print self, "Removing server %s (no longer found in new configuration)" % hostName
+            log.info("{} Removing server {} (no longer found in new configuration)".format(self, hostName))
             server.destroy()
             del self.servers[hostName]
 
@@ -416,7 +442,7 @@ class Coordinator:
     def _serverInitDone(self, result):
         """Called when all (new) servers have finished initializing"""
 
-        print self, "Initialization complete"
+        log.info("{} Initialization complete".format(self))
 
         # Assign the updated list of enabled servers to the LVSService instance
         self.assignServers()
@@ -469,7 +495,7 @@ class BGPFailover:
             self.bgpPeering.setAdvertisements(advertisements)
             self.bgpPeering.automaticStart()
         except Exception:
-            print "Could not set up BGP peering instance."
+            log.critical("Could not set up BGP peering instance.")
             raise
         else:
             BGPFailover.peerings.append(self.bgpPeering)
@@ -481,7 +507,7 @@ class BGPFailover:
                 pass
 
     def closeSession(self, peering):
-        print "Clearing session to", peering.peerAddr
+        log.info("Clearing session to {}".format(peering.peerAddr))
         # Withdraw all announcements
         peering.setAdvertisements(set())
         return peering.manualStop()
@@ -578,7 +604,7 @@ def main():
                 services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
                 crd = Coordinator(services[section],
                     configUrl=config.get(section, 'config'))
-                print "Created LVS service '%s'" % section
+                log.info("Created LVS service '{}'".format(section))
                 instrumentation.PoolsRoot.addPool(crd.lvsservice.name, crd)
 
         # Set up BGP
@@ -587,6 +613,13 @@ def main():
         except Exception:
             configdict = util.ConfigDict()
         configdict.update(cliconfig)
+
+        # Set the logging level
+        if configdict.get('debug', False):
+            util.PyBalLogObserver.level = logging.DEBUG
+        else:
+            util.PyBalLogObserver.level = logging.INFO
+
         bgpannouncement = BGPFailover(configdict)
 
         # Run the web server for instrumentation
@@ -598,7 +631,7 @@ def main():
 
         reactor.run()
     finally:
-        print "Exiting..."
+        log.info("Exiting...")
 
 if __name__ == '__main__':
     main()

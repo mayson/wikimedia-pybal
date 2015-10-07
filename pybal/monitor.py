@@ -5,6 +5,10 @@ Copyright (C) 2006-2014 by Mark Bergsma <mark@nedworks.org>
 Monitor class implementations for PyBal
 """
 from twisted.internet import reactor
+from . import util
+import logging
+
+_log = util._log
 
 
 class MonitoringProtocol(object):
@@ -60,15 +64,15 @@ class MonitoringProtocol(object):
             if self.coordinator:
                 self.coordinator.resultDown(self, reason)
 
-    def report(self, text):
+    def report(self, text, level=logging.DEBUG):
         """Common method for reporting/logging check results."""
-        print "[%s %s] %s (%s): %s" % (
-            self.server.lvsservice.name,
-            self.__name__,
+        msg = "%s (%s): %s" % (
             self.server.host,
             self.server.textStatus(),
             text
         )
+        s = "%s %s" % (self.server.lvsservice.name, self.__name__)
+        _log(msg, level, s)
 
     def _getConfigBool(self, optionname, default=None):
         return self.configuration.getboolean(

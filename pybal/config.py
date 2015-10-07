@@ -15,10 +15,9 @@ import os
 import re
 
 from twisted.internet import task
-from twisted.python import log
 from twisted.web import client
 
-from pybal.util import get_subclasses
+from pybal.util import get_subclasses, log
 
 
 class ConfigurationObserver(object):

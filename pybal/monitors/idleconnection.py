@@ -8,6 +8,7 @@ Monitor class implementations for PyBal
 from pybal import monitor
 
 from twisted.internet import reactor, protocol
+import logging
 
 import random
 import socket
@@ -62,7 +63,7 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         # Immediately set status to down
         self._resultDown(reason.getErrorMessage())
 
-        self.report("Connection failed.")
+        self.report("Connection failed.", level=logging.WARN)
 
         # Slowly reconnect
         self.retry(connector)
@@ -81,7 +82,7 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
             # Connection lost in a non clean way. Immediately set status to down
             self._resultDown(reason.getErrorMessage())
 
-            self.report("Connection lost.")
+            self.report("Connection lost.", level=logging.INFO)
 
             # Slowly reconnect
             self.retry(connector)
