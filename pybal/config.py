@@ -20,6 +20,10 @@ from twisted.web import client
 from pybal.util import get_subclasses, log
 
 
+class PyBalConfigurationError(Exception):
+    pass
+
+
 class ConfigurationObserver(object):
     @classmethod
     def fromUrl(cls, coordinator, configUrl):
