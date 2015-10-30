@@ -25,6 +25,7 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
 
     TIMEOUT_CLEAN_RECONNECT = 3
     MAX_DELAY = 300
+    KEEPALIVE_RETRIES = 10
 
     __name__ = 'IdleConnection'
 
@@ -36,6 +37,8 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
 
         self.toCleanReconnect = self._getConfigInt('timeout-clean-reconnect', self.TIMEOUT_CLEAN_RECONNECT)
         self.maxDelay = self._getConfigInt('max-delay', self.MAX_DELAY)
+        self.keepAliveRetries = self._getConfigInt('keepalive-retries',
+                                                   self.KEEPALIVE_RETRIES)
 
     def run(self):
         """Start the monitoring"""
@@ -97,7 +100,8 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
             sock = self.transport.getHandle()
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPIDLE, 1)
-            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT, 2)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT,
+                            self.keepAliveRetries)
             sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPINTVL, 1)
 
         # Set status to up
