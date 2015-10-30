@@ -1,0 +1,30 @@
+#!/lib/init/init-d-script
+
+### BEGIN INIT INFO
+# Provides:             pybal
+# Required-Start:       $remote_fs $syslog $network
+# Required-Stop:        $remote_fs $syslog
+# Should-Start:         $named
+# Should-Stop:
+# Default-Start:        2 3 4 5
+# Default-Stop:         0 1 6
+# Short-Description:    PyBal
+# Description:          PyBal LVS monitor
+### END INIT INFO
+DAEMON=/usr/sbin/pybal
+NAME=pybal
+DESC=pybal
+
+do_start_cmd_override() {
+	if pidofproc $DAEMON > /dev/null; then
+		return 1
+	fi
+	start-stop-daemon --start --quiet --background --name $NAME \
+		--startas /bin/bash -- -c "exec $DAEMON $DAEMON_OPTS > /var/log/pybal.log 2>&1" || return 2
+}
+
+do_stop_cmd_override() {
+	PID=$(pidofproc $DAEMON)
+	start-stop-daemon --stop --quiet --pid $PID \
+		--name $NAME --retry 2 --oknodo
+}

@@ -1,3 +1,11 @@
+pybal (1.12) jessie-wikimedia; urgency=medium
+
+  * IdleConnection: set tcp keepalive
+  * Add EtcdConfigurationObserver to consume configuration dynamically from etcd
+  * Convert logging from print to twisted.python.log
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Fri, 30 Oct 2015 11:44:14 +0100
+
 pybal (1.11.1) jessie-wikimedia; urgency=medium
 
   * Fix a typo in Proxyfetch, systemd unit file
