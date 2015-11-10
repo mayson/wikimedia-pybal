@@ -44,8 +44,34 @@ class ServerRoot(Resource):
     def getChild(self, path, request):
         if path == 'pools':
             return PoolsRoot()
+        if path == 'alerts':
+            return Alerts()
         else:
             return Resp404()
+
+
+class Alerts(Resource):
+    alerting_services = {}
+    isLeaf = True
+
+    @classmethod
+    def addAlert(cls, name, msg):
+        cls.alerting_services[name] = msg
+
+    @classmethod
+    def delAlert(cls, name):
+        if name in cls.alerting_services:
+            del cls.alerting_services[name]
+
+    def render_GET(self, request):
+        if not len(self.alerting_services):
+            return "OK"
+        else:
+            if wantJson(request):
+                return json.dump(self.alerting_services)
+            else:
+                return "; ".join(["%s - %s" % (k, v)
+                                  for k, v in self.alerting_services.items()])
 
 
 class PoolsRoot(Resource):

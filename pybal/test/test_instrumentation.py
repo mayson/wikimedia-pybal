@@ -15,7 +15,7 @@ from twisted.web.server import Site
 from twisted.test import proto_helpers
 from .fixtures import PyBalTestCase, ServerStub
 from pybal.instrumentation import Resp404, ServerRoot, PoolsRoot
-from pybal.instrumentation import PoolServers, PoolServer
+from pybal.instrumentation import PoolServers, PoolServer, Alerts
 
 
 class WebBaseTestCase(PyBalTestCase):
@@ -75,6 +75,37 @@ class ServerRootTestCase(WebBaseTestCase):
         self.assertIsInstance(r.getChild('somethingelse', self.request),
                               Resp404)
 
+
+class AlertsTestCase(WebBaseTestCase):
+    """Test case for `pybal.instrumentation.Alerts`"""
+
+    def test_addAlert(self):
+        """
+        Test case for `Alerts.addAlert`
+        """
+        Alerts.addAlert('test', 'test_msg')
+        self.assertEquals(Alerts.alerting_services, {'test': 'test_msg'})
+
+    def test_delAlert(self):
+        """
+        Test case for `Alerts.delAlert`
+        """
+        try:
+            Alerts.delAlert('inexistent')
+        except Exception:
+            self.fail("An exception was raised when deleting an alert")
+        Alerts.addAlert('test', 'test_msg')
+        Alerts.delAlert('test')
+        self.assertEquals(Alerts.alerting_services, {})
+
+        def test_render(self):
+            """Test case for `PoolsRoot.render_GET`"""
+            r = Alerts()
+            self.assertEquals("OK", r.render_GET(self.request))
+            Alerts.addAlert('test', 'test_msg')
+            Alerts.addAlert('test1', 'test_msg1')
+            self.assertEquals("test - test_msg; test1 - test_msg1",
+                              r.render_GET(self.request))
 
 class PoolsRootTestCase(WebBaseTestCase):
     """Test case for `pybal.instrumentation.PoolsRoot`"""
