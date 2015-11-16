@@ -626,9 +626,9 @@ def main():
         bgpannouncement = BGPFailover(configdict)
 
         # Run the web server for instrumentation
-        if configdict.get('instrumentation', False):
+        if configdict.getboolean('instrumentation', False):
             from twisted.web.server import Site
-            port = configdict.get('instrumentation_port', 9090)
+            port = configdict.getint('instrumentation_port', 9090)
             factory = Site(instrumentation.ServerRoot())
             reactor.listenTCP(port, factory)
 

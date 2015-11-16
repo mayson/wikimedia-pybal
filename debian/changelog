@@ -1,3 +1,9 @@
+pybal (1.12.1) jessie-wikimedia; urgency=medium
+
+  * Fix instrumentation config
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Mon, 16 Nov 2015 15:28:14 +0100
+
 pybal (1.12) jessie-wikimedia; urgency=medium
 
   * IdleConnection: set tcp keepalive
