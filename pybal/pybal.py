@@ -364,7 +364,7 @@ class Coordinator:
             self.pooledDownServers.add(server)
             msg = "Could not depool server " \
                   "{} because of too many down!".format(server.host)
-            instrumentation.Alerts.add(self.lvsservice.name, msg)
+            instrumentation.Alerts.addAlert(self.lvsservice.name, msg)
             log.error(msg, system=self.lvsservice.name)
 
     def repool(self, server):
