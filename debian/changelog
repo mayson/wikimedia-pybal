@@ -1,3 +1,9 @@
+pybal (1.13) jessie-wikimedia; urgency=medium
+
+  * Reverted ansyncronous execution of ipvsadm, as it caused race conditions to happen
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Wed, 18 Nov 2015 15:49:48 +0100
+
 pybal (1.12.1) jessie-wikimedia; urgency=medium
 
   * Fix instrumentation config

@@ -1,35 +1,13 @@
 """
 ipvsadm.py
-Copyright (C) 2006-2014 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2015 by Mark Bergsma <mark@nedworks.org>
 
 LVS state/configuration classes for PyBal
 """
-from twisted.internet import reactor, defer, protocol, error
 from . import util
 
+import os
 log = util.log
-
-
-class IPVSProcessProtocol(protocol.ProcessProtocol, object):
-    def __init__(self, cmdList):
-        super(IPVSProcessProtocol, self).__init__()
-
-        self.stderr = ""
-        self.cmdList = map(lambda x: x + "\n", cmdList)
-
-    def connectionMade(self):
-        # Send the ipvsadm commands
-        self.transport.writeSequence(self.cmdList)
-        self.transport.closeStdin()
-
-    def errReceived(self, data):
-        self.stderr += data
-
-    def processExited(self, reason):
-        if reason.check(error.ProcessTerminated):
-            log.error("ipvsadm exited with status %d when executing cmdlist %s" %
-                      (reason.value.exitCode, self.cmdList))
-            log.error("ipvsadm stderr output: {}".format(self.stderr))
 
 
 class IPVSManager(object):
@@ -44,20 +22,23 @@ class IPVSManager(object):
 
     @classmethod
     def modifyState(cls, cmdList):
-        """Changes the state using a supplied list of commands (by
-        invoking ipvsadm)."""
+        """
+        Changes the state using a supplied list of commands (by invoking ipvsadm)
+        """
 
         if cls.Debug:
             print cmdList
+        if cls.DryRun: return
 
-        if cls.DryRun:
-            return defer.succeed(0)
+        command = [cls.ipvsPath, '-R']
+        stdin = os.popen(" ".join(command), 'w')
+        for line in cmdList:
+            stdin.write(line + '\n')
+        stdin.close()
 
-        ipvsProcessProtocol = IPVSProcessProtocol(cmdList)
-        return reactor.spawnProcess(ipvsProcessProtocol, cls.ipvsPath,
-                                    [cls.ipvsPath, '-R'])
+        # FIXME: Check return code and act on failure
 
-        # FIXME: Do something with this deferred
+
 
     @staticmethod
     def subCommandService(service):
