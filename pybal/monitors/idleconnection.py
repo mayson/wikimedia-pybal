@@ -25,7 +25,10 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
 
     TIMEOUT_CLEAN_RECONNECT = 3
     MAX_DELAY = 300
-    KEEPALIVE_RETRIES = 10
+    KEEPALIVE = True
+    KEEPALIVE_RETRIES = 3
+    KEEPALIVE_IDLE = 10
+    KEEPALIVE_INTERVAL = 30
 
     __name__ = 'IdleConnection'
 
@@ -37,8 +40,10 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
 
         self.toCleanReconnect = self._getConfigInt('timeout-clean-reconnect', self.TIMEOUT_CLEAN_RECONNECT)
         self.maxDelay = self._getConfigInt('max-delay', self.MAX_DELAY)
-        self.keepAliveRetries = self._getConfigInt('keepalive-retries',
-                                                   self.KEEPALIVE_RETRIES)
+        self.keepAlive = self._getConfigBool('keepalive', self.KEEPALIVE)
+        self.keepAliveRetries = self._getConfigInt('keepalive-retries', self.KEEPALIVE_RETRIES)
+        self.keepAliveIdle = self._getConfigInt('keepalive-idle', self.KEEPALIVE_IDLE)
+        self.keepAliveInterval = self._getConfigInt('keepalive-interval', self.KEEPALIVE_INTERVAL)
 
     def run(self):
         """Start the monitoring"""
@@ -96,13 +101,12 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
         if not self.active:
             return
 
-        if self.transport is not None:
+        if self.transport is not None and self.keepAlive:
             sock = self.transport.getHandle()
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPIDLE, 1)
-            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT,
-                            self.keepAliveRetries)
-            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPINTVL, 1)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPIDLE, self.keepAliveIdle)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT, self.keepAliveRetries)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPINTVL, self.keepAliveInterval)
 
         # Set status to up
         self._resultUp()
