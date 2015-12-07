@@ -1,3 +1,10 @@
+pybal (1.13.2) jessie-wikimedia; urgency=medium
+
+  * Fix a race condition in the alerting
+  * Add config options for IdleConnectionMonitor KeepAlive
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Mon, 07 Dec 2015 17:06:44 +0100
+
 pybal (1.13.1) jessie-wikimedia; urgency=medium
 
   * Fix alerting typo
