@@ -56,20 +56,27 @@ class Alerts(Resource):
 
     def render_GET(self, request):
         critPools = {}
+        resp = {'status': 'ok', 'msg': ''}
+
         for pool, crd in PoolsRoot._pools.items():
             pooledDown = len(crd.pooledDownServers)
             if pooledDown:
                 slist = ", ".join(crd.pooledDownServers)
                 critPools[pool] = "Servers %s are marked down but pooled" % slist
-        if critPools == {}:
-            return "OK"
-        else:
-            if wantJson(request):
-                return json.dumps(critPools)
-            else:
-                return "; ".join(["%s - %s" % (k, v)
-                                  for k, v in critPools.items()])
+            elif not crd.canDepool():
+                resp['status'] = 'warning'
+                resp['msg'] += "Pool %s is too small to allow depooling. " % crd.lvsservice.name
+        if critPools != {}:
+            resp['status'] = 'critical'
+            resp['msg'] = "; ".join(["%s: %s" % (k, v)
+                                    for k, v in critPools.items()])
 
+        if resp['status'] == 'ok':
+            resp['msg'] = 'All pools are healthy'
+        if wantJson(request):
+            return json.dumps(resp)
+        else:
+            return "%s - %s" % (resp['status'].upper(), resp['msg'])
 
 class PoolsRoot(Resource):
     """Pools base resource.

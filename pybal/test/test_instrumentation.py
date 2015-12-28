@@ -82,11 +82,16 @@ class AlertsTestCase(WebBaseTestCase):
 
     def test_render(self):
         """Test case for `PoolsRoot.render_GET`"""
+        self.request.requestHeaders.getRawHeaders.return_value = 'text/http'
         crd = self.coordinators[0]
         r = Alerts()
-        self.assertEquals("OK", r.render_GET(self.request))
+        self.assertEquals("OK - All pools are healthy",
+                          r.render_GET(self.request))
+        crd.canDepool = mock.MagicMock(return_value=False)
+        self.assertEquals('WARNING - Pool test_pool0 is too small to allow depooling. ',
+                          r.render_GET(self.request))
         crd.pooledDownServers = ['mw1001', 'mw1002']
-        self.assertEquals('{"test_pool0": "Servers mw1001, mw1002 are marked down but pooled"}',
+        self.assertEquals('CRITICAL - test_pool0: Servers mw1001, mw1002 are marked down but pooled',
                           r.render_GET(self.request))
 
 
@@ -96,7 +101,6 @@ class PoolsRootTestCase(WebBaseTestCase):
 
     def test_getChild(self):
         """Test case for `PoolsRoot.getChild`"""
-
         r = PoolsRoot()
         self.assertEquals(r, r.getChild("", self.request))
         res = r.getChild('test_pool0', self.request)
