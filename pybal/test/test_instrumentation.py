@@ -48,6 +48,7 @@ class WebBaseTestCase(PyBalTestCase):
             self.coordinators.append(coord)
         PoolsRoot.addPool('test_pool0', self.coordinators[0])
 
+
 class Resp404TestCase(WebBaseTestCase):
     """Test case for `pybal.instrumentation.Resp404`"""
 
@@ -79,33 +80,15 @@ class ServerRootTestCase(WebBaseTestCase):
 class AlertsTestCase(WebBaseTestCase):
     """Test case for `pybal.instrumentation.Alerts`"""
 
-    def test_addAlert(self):
-        """
-        Test case for `Alerts.addAlert`
-        """
-        Alerts.addAlert('test', 'test_msg')
-        self.assertEquals(Alerts.alerting_services, {'test': 'test_msg'})
+    def test_render(self):
+        """Test case for `PoolsRoot.render_GET`"""
+        crd = self.coordinators[0]
+        r = Alerts()
+        self.assertEquals("OK", r.render_GET(self.request))
+        crd.pooledDownServers = ['mw1001', 'mw1002']
+        self.assertEquals('{"test_pool0": "Servers mw1001, mw1002 are marked down but pooled"}',
+                          r.render_GET(self.request))
 
-    def test_delAlert(self):
-        """
-        Test case for `Alerts.delAlert`
-        """
-        try:
-            Alerts.delAlert('inexistent')
-        except Exception:
-            self.fail("An exception was raised when deleting an alert")
-        Alerts.addAlert('test', 'test_msg')
-        Alerts.delAlert('test')
-        self.assertEquals(Alerts.alerting_services, {})
-
-        def test_render(self):
-            """Test case for `PoolsRoot.render_GET`"""
-            r = Alerts()
-            self.assertEquals("OK", r.render_GET(self.request))
-            Alerts.addAlert('test', 'test_msg')
-            Alerts.addAlert('test1', 'test_msg1')
-            self.assertEquals("test - test_msg; test1 - test_msg1",
-                              r.render_GET(self.request))
 
 class PoolsRootTestCase(WebBaseTestCase):
     """Test case for `pybal.instrumentation.PoolsRoot`"""

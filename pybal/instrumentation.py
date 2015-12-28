@@ -54,24 +54,21 @@ class Alerts(Resource):
     alerting_services = {}
     isLeaf = True
 
-    @classmethod
-    def addAlert(cls, name, msg):
-        cls.alerting_services[name] = msg
-
-    @classmethod
-    def delAlert(cls, name):
-        if name in cls.alerting_services:
-            del cls.alerting_services[name]
-
     def render_GET(self, request):
-        if not len(self.alerting_services):
+        critPools = {}
+        for pool, crd in PoolsRoot._pools.items():
+            pooledDown = len(crd.pooledDownServers)
+            if pooledDown:
+                slist = ", ".join(crd.pooledDownServers)
+                critPools[pool] = "Servers %s are marked down but pooled" % slist
+        if critPools == {}:
             return "OK"
         else:
             if wantJson(request):
-                return json.dump(self.alerting_services)
+                return json.dumps(critPools)
             else:
                 return "; ".join(["%s - %s" % (k, v)
-                                  for k, v in self.alerting_services.items()])
+                                  for k, v in critPools.items()])
 
 
 class PoolsRoot(Resource):
