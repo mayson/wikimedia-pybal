@@ -60,10 +60,11 @@ class Alerts(Resource):
 
         for pool, crd in PoolsRoot._pools.items():
             pooledDown = len(crd.pooledDownServers)
+            total = len(crd.servers)
             if pooledDown:
-                slist = ", ".join(crd.pooledDownServers)
+                slist = ", ".join([s.host for s in crd.pooledDownServers])
                 critPools[pool] = "Servers %s are marked down but pooled" % slist
-            elif not crd.canDepool():
+            elif total < (total * crd.lvsservice.getDepoolThreshold() + 1):
                 resp['status'] = 'warning'
                 resp['msg'] += "Pool %s is too small to allow depooling. " % crd.lvsservice.name
         if critPools != {}:

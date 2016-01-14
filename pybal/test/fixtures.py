@@ -74,6 +74,7 @@ class StubLVSService(object):
         self.configuration = configuration
 
 
+
 class MockClientGetPage(object):
     def __init__(self, data):
         self.return_value = data

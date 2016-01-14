@@ -84,13 +84,24 @@ class AlertsTestCase(WebBaseTestCase):
         """Test case for `PoolsRoot.render_GET`"""
         self.request.requestHeaders.getRawHeaders.return_value = 'text/http'
         crd = self.coordinators[0]
+        m1 = ServerStub('mw1001')
+        m2 = ServerStub('mw1002')
+        m3 = ServerStub('mw1003')
+        crd.servers = [m1, m2, m3]
+
+        # Healthy pool
+        crd.lvsservice.getDepoolThreshold = mock.MagicMock(return_value=0)
         r = Alerts()
         self.assertEquals("OK - All pools are healthy",
                           r.render_GET(self.request))
-        crd.canDepool = mock.MagicMock(return_value=False)
+
+        # Misconfigured pool
+        crd.lvsservice.getDepoolThreshold = mock.MagicMock(return_value=1.0)
         self.assertEquals('WARNING - Pool test_pool0 is too small to allow depooling. ',
                           r.render_GET(self.request))
-        crd.pooledDownServers = ['mw1001', 'mw1002']
+
+        # Pool with too many servers down
+        crd.pooledDownServers = [m1, m2]
         self.assertEquals('CRITICAL - test_pool0: Servers mw1001, mw1002 are marked down but pooled',
                           r.render_GET(self.request))
 
@@ -198,7 +209,6 @@ class SiteTest(WebBaseTestCase):
         """Test case for an non-existent host"""
         hdr, _ = self._httpReq(uri='/pools/test_pool0/mw1011')
         self.assertTrue(hdr.startswith('HTTP/1.1 404 Not Found'))
-
 
     def tearDown(self):
         self.proto.connectionLost(Failure(TypeError("whatever")))
