@@ -1,3 +1,10 @@
+pybal (1.2+git20160119-0) stable; urgency=low
+
+  * Now depends on python-twisted >= 14.0.1.
+  * Added SNI support for proxyfetch checks.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Tue, 19 Jan 2016 12:19:10 +0600
+
 pybal (1.2+git20140410-0ubuntu1) UNRELEASED; urgency=medium
 
   * Changed python2.6 dependency to python2.6+

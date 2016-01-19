@@ -7,9 +7,26 @@ Monitor class implementations for PyBal
 
 from pybal import monitor
 
-from twisted.internet import reactor, defer
+from twisted.internet import reactor, defer, ssl
 from twisted.web import client
 from twisted.python.runtime import seconds
+from OpenSSL.SSL import OP_ALL, Connection
+from twisted.internet._sslverify import ClientTLSOptions
+
+class SSLClientContextFactory(ssl.ClientContextFactory):
+
+    def __init__(self, hostname=None):
+        self.hostname = hostname
+
+    def getContext(self, hostname=None, port=None):
+        ctx = ssl.ClientContextFactory.getContext(self)
+        # Enable all workarounds to SSL bugs as documented by
+        # http://www.openssl.org/docs/ssl/SSL_CTX_set_options.html
+        ctx.set_options(OP_ALL)
+        hostname = hostname or self.hostname
+        if hostname:
+            ClientTLSOptions(hostname, ctx)
+        return ctx
 
 class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
     """
@@ -133,9 +150,8 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         port = port or factory.port
 
         if factory.scheme == 'https':
-            from twisted.internet import ssl
             if contextFactory is None:
-                contextFactory = ssl.ClientContextFactory()
+                contextFactory = SSLClientContextFactory(factory.host)
             reactor.connectSSL(host, port, factory, contextFactory)
         else:
             reactor.connectTCP(host, port, factory)
