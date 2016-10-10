@@ -14,6 +14,58 @@ import logging, random
 
 log = util.log
 
+# taken from twisted/twisted/internet/_sslverify.py
+try:
+    from OpenSSL.SSL import SSL_CB_HANDSHAKE_DONE, SSL_CB_HANDSHAKE_START
+except ImportError:
+    SSL_CB_HANDSHAKE_START = 0x10
+    SSL_CB_HANDSHAKE_DONE = 0x20
+from twisted.internet._sslverify import (ClientTLSOptions,
+                                         _maybeSetHostNameIndication,
+                                         verifyHostname,
+                                         VerificationError)
+from OpenSSL.SSL import OP_ALL
+from twisted.internet.ssl import ClientContextFactory
+
+class ScrapyClientTLSOptions(ClientTLSOptions):
+    """
+    SSL Client connection creator ignoring certificate verification errors
+    (for genuinely invalid certificates or bugs in verification code).
+    Same as Twisted's private _sslverify.ClientTLSOptions,
+    except that VerificationError and ValueError exceptions are caught,
+    so that the connection is not closed, only logging warnings.
+    """
+
+    def _identityVerifyingInfoCallback(self, connection, where, ret):
+        if where & SSL_CB_HANDSHAKE_START:
+            _maybeSetHostNameIndication(connection, self._hostnameBytes)
+        elif where & SSL_CB_HANDSHAKE_DONE:
+            try:
+                verifyHostname(connection, self._hostnameASCII)
+            except VerificationError as e:
+                log.warn(
+                    'Remote certificate is not valid for hostname "{}"; {}'.format(
+                        self._hostnameASCII, e))
+
+            except ValueError as e:
+                log.warn(
+                    'Ignoring error while verifying certificate '
+                    'from host "{}" (exception: {})'.format(
+                        self._hostnameASCII, repr(e)))
+
+class SSLClientContextFactory(ClientContextFactory):
+
+    def __init__(self, hostname=None):
+        self.hostname = hostname
+
+    def getContext(self):
+        ctx = ClientContextFactory.getContext(self)
+        # Enable all workarounds to SSL bugs as documented by
+        # http://www.openssl.org/docs/ssl/SSL_CTX_set_options.html
+        ctx.set_options(OP_ALL)
+        if self.hostname:
+            ScrapyClientTLSOptions(self.hostname, ctx)
+        return ctx
 
 class RedirHTTPPageGetter(client.HTTPPageGetter):
     """PageGetter that accepts redirects as valid responses"""
@@ -166,9 +218,8 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
         port = port or factory.port
 
         if factory.scheme == 'https':
-            from twisted.internet import ssl
             if contextFactory is None:
-                contextFactory = ssl.ClientContextFactory()
+                contextFactory = SSLClientContextFactory(factory.host)
             reactor.connectSSL(host, port, factory, contextFactory)
         else:
             reactor.connectTCP(host, port, factory)
