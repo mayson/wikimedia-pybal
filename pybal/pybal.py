@@ -38,9 +38,10 @@ class Server:
     # Defaults
     DEF_STATE = True
     DEF_WEIGHT = 10
+    DEF_FWMETHOD = 'g'
 
     # Set of attributes allowed to be overridden in a server list
-    allowedConfigKeys = [ ('host', str), ('weight', int), ('enabled', bool) ]
+    allowedConfigKeys = [ ('host', str), ('weight', int), ('fwmethod', str), ('enabled', bool) ]
 
     def __init__(self, host, lvsservice, addressFamily=None):
         """Constructor"""
@@ -51,7 +52,7 @@ class Server:
             self.addressFamily = addressFamily
         else:
             self.addressFamily = (':' in self.lvsservice.ip) and socket.AF_INET6 or socket.AF_INET
-        self.ip = None
+        self.ip = self.host if self.is_valid_ip() else None
         self.port = 80
         self.ip4_addresses = set()
         self.ip6_addresses = set()
@@ -63,6 +64,7 @@ class Server:
         # P2: pooled => up \/ !canDepool
 
         self.weight = self.DEF_WEIGHT
+        self.fwmethod = self.DEF_FWMETHOD
         self.up = False
         self.pooled = False
         self.enabled = True
@@ -87,6 +89,31 @@ class Server:
             monitor.stop()
 
         self.monitors.clear()
+
+    def is_valid_ip(self):
+        """Validates IP addresses.
+        """
+        return self.is_valid_ipv4() or self.is_valid_ipv6()
+
+    def is_valid_ipv4(self):
+        try:
+            socket.inet_pton(socket.AF_INET, self.host)
+        except AttributeError:  # no inet_pton here, sorry
+            try:
+                socket.inet_aton(self.host)
+            except socket.error:
+                return False
+            return self.host.count('.') == 3
+        except socket.error:  # not a valid address
+            return False
+        return True
+
+    def is_valid_ipv6(self):
+        try:
+            socket.inet_pton(socket.AF_INET6, self.host)
+        except socket.error:  # not a valid address
+            return False
+        return True
 
     def resolveHostname(self):
         """Attempts to resolve the server's hostname to an IP address for better reliability."""
@@ -156,7 +183,11 @@ class Server:
         when ready for use (self.ready == True)
         """
 
-        d = self.resolveHostname()
+        if self.ip:
+            d = defer.Deferred()
+            reactor.callLater(1, d.callback, coordinator)
+        else:
+            d = self.resolveHostname()
 
         return d.addCallbacks(self._ready, self._initFailed, callbackArgs=[coordinator])
 
@@ -449,6 +480,21 @@ class Coordinator:
         self.assignServers()
 
 
+class Loopback:
+    ipPath = '/sbin/ip'
+    loLabel = 'LVS'
+
+    @classmethod
+    def addIP(cls, ip):
+        log.info("Adding IP {} to the lo:{} interface...".format(ip, cls.loLabel))
+        os.system("%s address add %s/32 dev lo:%s" % (cls.ipPath, ip, cls.loLabel))
+
+    @classmethod
+    def delIP(cls, ip):
+        log.info("Removing IP {} from lo:{} interface...".format(ip, cls.loLabel))
+        os.system("%s address del %s/32 dev lo:%s" % (cls.ipPath, ip, cls.loLabel))
+
+
 class BGPFailover:
     """Class for maintaining a BGP session to a router for IP address failover"""
 
@@ -574,7 +620,7 @@ def main():
     # Read the configuration file
     configFile = '/etc/pybal/pybal.conf'
 
-    config = SafeConfigParser()
+    config = SafeConfigParser({'port':'0'})
     config.read(configFile)
 
     services, cliconfig = {}, {}
@@ -587,12 +633,17 @@ def main():
         installSignalHandlers()
 
         for section in config.sections():
+            cfgtuple = {}
             if section != 'global':
-                cfgtuple = (
-                    config.get(section, 'protocol'),
-                    config.get(section, 'ip'),
-                    config.getint(section, 'port'),
-                    config.get(section, 'scheduler'))
+                ips = config.get(section, 'ip').split(',')
+                num = 0
+                for ip in ips:
+                    cfgtuple[num] = (
+                        config.get(section, 'protocol'),
+                        ip,
+                        config.getint(section, 'port'),
+                        config.get(section, 'scheduler'))
+                    num += 1
 
             # Read the custom configuration options of the LVS section
             configdict = util.ConfigDict(config.items(section))
@@ -601,11 +652,16 @@ def main():
             configdict.update(cliconfig)
 
             if section != 'global':
-                services[section] = ipvs.LVSService(section, cfgtuple, configuration=configdict)
-                crd = Coordinator(services[section],
-                    configUrl=config.get(section, 'config'))
-                log.info("Created LVS service '{}'".format(section))
-                instrumentation.PoolsRoot.addPool(crd.lvsservice.name, crd)
+                num = 0
+                for ip in ips:
+                    servicename = section
+                    if num: servicename += '_%u' % num
+                    services[servicename] = ipvs.LVSService(servicename, cfgtuple[num], configuration=configdict)
+                    crd = Coordinator(services[servicename],
+                        configUrl=config.get(section, 'config'))
+                    log.info("Created LVS service '{}'".format(servicename))
+                    instrumentation.PoolsRoot.addPool(crd.lvsservice.name, crd)
+                    num += 1
 
         # Set up BGP
         try:
@@ -631,6 +687,8 @@ def main():
 
         reactor.run()
     finally:
+        for service in services:
+            Loopback.delIP(services[service].ip)
         log.info("Exiting...")
 
 if __name__ == '__main__':

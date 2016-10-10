@@ -98,6 +98,7 @@ class FileConfigurationObserver(ConfigurationObserver):
                 server = ast.literal_eval(line)
                 host = server.pop('host')
                 config[host] = {'enabled': server['enabled'],
+                                'fwmethod': server['fwmethod'],
                                 'weight': server['weight']}
             except (KeyError, SyntaxError, TypeError, ValueError) as ex:
                 # We catch exceptions here (rather than simply allow them to

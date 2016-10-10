@@ -27,7 +27,7 @@ class IPVSManager(object):
         """
 
         if cls.Debug:
-            print cmdList
+            log.debug(cmdList)
         if cls.DryRun: return
 
         command = [cls.ipvsPath, '-R']
@@ -95,6 +95,10 @@ class IPVSManager(object):
 
         cmd = '-A ' + cls.subCommandService(service)
 
+        # Include persistence if enabled or port is 0
+        if service[4] or service[2] == 0:
+            cmd += ' -p'
+
         # Include scheduler if specified
         if len(service) > 3:
             cmd += ' -s ' + service[3]
@@ -129,6 +133,16 @@ class IPVSManager(object):
         if server.weight:
             cmd += ' -w %d' % server.weight
 
+        # Include packet forwarding method
+        if server.fwmethod in ('i', 'ipip'):
+            cmd += ' -i'
+        elif server.fwmethod in ('m', 'masq', 'masquerading'):
+            cmd += ' -m'
+        else:
+            cmd += ' -g'
+            if server.fwmethod not in ('g', 'gw', 'gate', 'gatewaying'):
+                log.info("Server {}: unknown forwarding method {}, using default".format((server.ip or server.host), server.fwmethod))
+
         return cmd
 
     @classmethod
@@ -147,6 +161,16 @@ class IPVSManager(object):
         # Include weight if specified
         if server.weight:
             cmd += ' -w %d' % server.weight
+
+        # Include packet forwarding method
+        if server.fwmethod in ('i', 'ipip'):
+            cmd += ' -i'
+        elif server.fwmethod in ('m', 'masq', 'masquerading'):
+            cmd += ' -m'
+        else:
+            cmd += ' -g'
+            if server.fwmethod not in ('g', 'gw', 'gate', 'gatewaying'):
+                log.info("Server {}: unknown forwarding method {}, using default".format((server.ip or server.host), server.fwmethod))
 
         return cmd
 
@@ -180,11 +204,15 @@ class LVSService:
 
         self.ipvsManager.DryRun = configuration.getboolean('dryrun', False)
         self.ipvsManager.Debug = configuration.getboolean('debug', False)
+        self.persist = configuration.getboolean('persistent', False)
 
         if self.configuration.getboolean('bgp', False):
             from pybal import BGPFailover
             # Add service ip to the BGP announcements
             BGPFailover.addPrefix(self.ip)
+
+        from pybal import Loopback
+        Loopback.addIP(self.ip)
 
         self.createService()
 
@@ -192,7 +220,7 @@ class LVSService:
         """Returns a tuple (protocol, ip, port, scheduler) that
         describes this LVS instance."""
 
-        return (self.protocol, self.ip, self.port, self.scheduler)
+        return (self.protocol, self.ip, self.port, self.scheduler, self.persist)
 
     def createService(self):
         """Initializes this LVS instance in LVS."""
