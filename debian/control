@@ -10,7 +10,7 @@ Homepage: http://wikitech.wikimedia.org/view/Pybal
 
 Package: pybal
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python-twisted, python-twisted (>= 14.0.1),
+Depends: ${misc:Depends}, ${python:Depends}, python-twisted, python-twisted (>= 14.0.1), iproute2,
   python-mock, ipvsadm
 Description: Wikimedia LVS monitor
  PyBal is an LVS load balancer monitor. It checks the status of
