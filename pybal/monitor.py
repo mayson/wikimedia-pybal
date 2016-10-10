@@ -64,7 +64,7 @@ class MonitoringProtocol(object):
             if self.coordinator:
                 self.coordinator.resultDown(self, reason)
 
-    def report(self, text, level=logging.DEBUG):
+    def report(self, text, level=logging.INFO):
         """Common method for reporting/logging check results."""
         msg = "%s (%s): %s" % (
             self.server.host,
