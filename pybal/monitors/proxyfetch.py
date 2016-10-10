@@ -215,7 +215,8 @@ class ProxyFetchMonitoringProtocol(monitor.MonitoringProtocol):
             factory = client.HTTPClientFactory(url, *args, **kwargs)
 
         host = host or factory.host
-        port = port or factory.port
+        # We should connect to different port taken from URI if specified
+        port = factory.port or port
 
         if factory.scheme == 'https':
             if contextFactory is None:
