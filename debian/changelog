@@ -1,3 +1,19 @@
+pybal (1.13.2-0+git20160915) testing; urgency=medium
+
+  * Imported all upstream changes
+  * The differences from upstream are:
+    - SNI support for proxyfetch checks,
+    - (bool)persistent config key for persistent balancing,
+    - allow port=0 (default) for balance all TCP/UDP traffic,
+    - add IP/32 to lo interface on startup and delete it on stop,
+    - allow to get status from another port via proxyfetch monitor,
+    - allow to add several IPs comma separated while defining service.
+    - Added fwmethod directive to hosts configurtion.
+    - Now depool-threshold default value is 0.
+    - BGP reconnect after disconnect.
+
+ -- Sergey Maslov <sergey@maslov.biz>  Tue, 13 Sep 2016 13:06:56 +0700
+
 pybal (1.13.2) jessie-wikimedia; urgency=medium
 
   * Fix a race condition in the alerting
