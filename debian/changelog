@@ -1,3 +1,9 @@
+pybal (1.13.2-1+git20160915) testing; urgency=medium
+
+  * Updated systemd config
+
+ -- Max Kochubey <m.kochubey@2gis.ru>  Wed, 30 Nov 2016 12:40:14 +0700
+
 pybal (1.13.2-0+git20160915) testing; urgency=medium
 
   * Imported all upstream changes
