@@ -97,15 +97,20 @@ class FileConfigurationObserver(ConfigurationObserver):
                     continue
                 server = ast.literal_eval(line)
                 host = server.pop('host')
-                config[host] = {'enabled': server['enabled'],
-                                'fwmethod': server['fwmethod'],
-                                'weight': server['weight']}
             except (KeyError, SyntaxError, TypeError, ValueError) as ex:
                 # We catch exceptions here (rather than simply allow them to
                 # bubble up to FileConfigurationObserver.logError) because we
                 # want to try and parse as much of the file as we can.
                 log.err(ex, 'Bad configuration line: %s' % line)
                 continue
+            else:
+                config[host] = {}
+                try: config[host]['enabled'] = server['enabled']
+                except: pass
+                try: config[host]['fwmethod']= server['fwmethod']
+                except: pass
+                try: config[host]['weight']  = server['weight']
+                except: pass
         return config
 
     def parseJsonConfig(self, rawConfig):

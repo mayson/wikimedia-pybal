@@ -21,8 +21,8 @@ from twisted import copyright
 from twisted.internet import reactor, protocol, base, interfaces, error, defer
 
 from . import util
-def bgplog(msg):
-    util.log.info(msg, system="BGP")
+def bgplog(msg, peer=""):
+    util.log.info(msg, system = len(peer)==0 and "BGP" or "BGP "+peer)
 
 # Constants
 VERSION = 4
@@ -974,7 +974,7 @@ class FSM(object):
     
     def __setattr__(self, name, value):
         if name == 'state' and value != getattr(self, name):
-            bgplog("State is now: {}".format(stateDescr[value]))
+            bgplog("State is now: {}".format(stateDescr[value]), self.bgpPeering.peerAddr)
         super(FSM, self).__setattr__(name, value)
 
     def manualStart(self):
@@ -1107,7 +1107,7 @@ class FSM(object):
         elif self.state == ST_OPENCONFIRM:
             # State OpenConfirm, events 19, 20
             # DEBUG
-            bgplog("Running collision detection")
+            bgplog("Running collision detection", self.bgpPeering.peerAddr)
             
             # Perform collision detection
             self.protocol.collisionDetect()
@@ -1236,7 +1236,7 @@ class FSM(object):
             return
         elif self.state in (ST_OPENSENT, ST_OPENCONFIRM):
             # DEBUG
-            bgplog("Collided, closing.")
+            bgplog("Collided, closing.", self.bgpPeering.peerAddr)
             self.protocol.sendNotification(ERR_CEASE, 0)
             
         self._errorClose()
@@ -1248,7 +1248,7 @@ class FSM(object):
         assert(self.delayOpen)
         
         # DEBUG
-        bgplog("Delay Open event")
+        bgplog("Delay Open event", self.bgpPeering.peerAddr)
         
         if self.state == ST_CONNECT:
             # State Connect, event 12
@@ -1372,7 +1372,7 @@ class BGP(protocol.Protocol):
         self.transport.setTcpNoDelay(True)
         
         # DEBUG
-        bgplog("Connection established")
+        bgplog("Connection established", self.bgpPeering.peerAddr)
         
         # Set the local BGP id from the local IP address if it's not set
         if self.factory.bgpId is None:
@@ -1396,7 +1396,7 @@ class BGP(protocol.Protocol):
             return
         
         # DEBUG
-        bgplog("Connection lost: {}".format(reason.getErrorMessage()))
+        bgplog("Connection lost: {}".format(reason.getErrorMessage()), self.bgpPeering.peerAddr)
         
         try:
             self.fsm.connectionFailed()
@@ -1426,7 +1426,7 @@ class BGP(protocol.Protocol):
         """Sends a BGP Open message to the peer"""
         
         # DEBUG
-        bgplog("Sending Open")
+        bgplog("Sending Open", self.bgpPeering.peerAddr)
         
         self.transport.write(self.constructOpen())
     
@@ -1434,10 +1434,10 @@ class BGP(protocol.Protocol):
         """Sends a BGP Update message to the peer"""
         
         # DEBUG
-        bgplog("Sending Update")
-        bgplog("Withdrawing: {}".format(withdrawnPrefixes))
-        bgplog("Attributes: {}".format(attributes))
-        bgplog("NLRI: {}".format(nlri))
+        bgplog("Sending Update", self.bgpPeering.peerAddr)
+        bgplog("Withdrawing: {}".format(withdrawnPrefixes), self.bgpPeering.peerAddr)
+        bgplog("Attributes: {}".format(attributes), self.bgpPeering.peerAddr)
+        bgplog("NLRI: {}".format(nlri), self.bgpPeering.peerAddr)
         
         self.transport.write(self.constructUpdate(withdrawnPrefixes, attributes, nlri))
         self.fsm.updateSent()
@@ -1645,7 +1645,7 @@ class BGP(protocol.Protocol):
         """Called when a BGP Open message was received."""
         
         # DEBUG
-        bgplog("OPEN: version:{} ASN:{} hold time:{} id:{}".format(version, ASN, holdTime, bgpId))
+        bgplog("OPEN: version:{} ASN:{} hold time:{} id:{}".format(version, ASN, holdTime, bgpId), self.bgpPeering.peerAddr)
             
         self.peerId = bgpId
         self.bgpPeering.setPeerId(bgpId)
@@ -1681,7 +1681,7 @@ class BGP(protocol.Protocol):
         """
         
         # DEBUG
-        bgplog("NOTIFICATION: {} {} {}".format(error, suberror, [ord(d) for d in data]))
+        bgplog("NOTIFICATION: {} {} {}".format(error, suberror, [ord(d) for d in data]), self.bgpPeering.peerAddr)
         
         self.fsm.notificationReceived(error, suberror)
 
@@ -1696,7 +1696,7 @@ class BGP(protocol.Protocol):
         self.fsm.keepAliveTime = self.fsm.holdTime / 3
         
         # DEBUG
-        bgplog("Hold time:{} Keepalive time:{}".format(self.fsm.holdTime, self.fsm.keepAliveTime))
+        bgplog("Hold time:{} Keepalive time:{}".format(self.fsm.holdTime, self.fsm.keepAliveTime), self.bgpPeering.peerAddr)
 
     def collisionDetect(self):
         """Performs collision detection. Outsources to factory class BGPPeering."""
@@ -1882,7 +1882,7 @@ class BGPPeering(BGPFactory):
     def buildProtocol(self, addr):
         """Builds a BGP protocol instance"""
         
-        bgplog("Building a new BGP protocol instance")
+        bgplog("Building a new BGP protocol instance", self.peerAddr)
         
         p = BGPFactory.buildProtocol(self, addr)
         if p is not None:
@@ -1926,7 +1926,7 @@ class BGPPeering(BGPFactory):
         """Called when the outgoing connection failed."""
         
         # DEBUG
-        bgplog("Client connection failed: {}".format(reason.getErrorMessage()))
+        bgplog("Client connection failed: {}".format(reason.getErrorMessage()), self.peerAddr)
 
         # There is no protocol instance yet at this point.
         # Catch a possible NotificationException
@@ -1980,7 +1980,7 @@ class BGPPeering(BGPFactory):
         Called by FSM or Protocol when the BGP connection has been closed.
         """
         
-        bgplog("Connection closed")
+        bgplog("Connection closed", self.peerAddr)
         
         if protocol is not None:
             # Connection succeeded previously, protocol exists
@@ -1995,12 +1995,8 @@ class BGPPeering(BGPFactory):
             
             if protocol is self.estabProtocol:
                 self.estabProtocol = None
-                # self.fsm should still be valid and set to ST_IDLE
-                try:
-                    assert self.fsm.state == ST_IDLE
-                except AssertionError:
-                    pass
-
+            # self.fsm should still be valid and set to ST_IDLE
+            self.fsm.state = ST_IDLE
         
         if self.fsm.allowAutomaticStart: self.automaticStart(idleHold=True)
     
@@ -2039,7 +2035,7 @@ class BGPPeering(BGPFactory):
     def protocolError(self, failure):
         failure.trap(BGPException)
         
-        bgplog("BGP exception {}".format(failure))
+        bgplog("BGP exception {}".format(failure), self.peerAddr)
         
         e = failure.check(NotificationSent)
         try:
@@ -2047,9 +2043,9 @@ class BGPPeering(BGPFactory):
             failure.raiseException()
         except NotificationSent, e:
             if (e.error, e.suberror) == (ERR_MSG_UPDATE, ERR_MSG_UPDATE_ATTR_FLAGS):
-                bgplog("exception on flags: {}".format(BGP.parseEncodedAttributes(e.data)))
+                bgplog("exception on flags: {}".format(BGP.parseEncodedAttributes(e.data)), self.peerAddr)
             else:
-                bgplog("{} {} {}".format(e.error, e.suberror, e.data))
+                bgplog("{} {} {}".format(e.error, e.suberror, e.data), self.peerAddr)
         
         # FIXME: error handling
         

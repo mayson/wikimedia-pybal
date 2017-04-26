@@ -248,8 +248,8 @@ class Server:
     def calcStatus(self):
         """AND quantification of monitor.up over all monitoring instances of a single Server"""
 
-        # Global status is up iff all monitors report up
-        return reduce(lambda b,monitor: b and monitor.up, self.monitors, len(self.monitors) != 0)
+        # Global status is up if all monitors report up
+        return reduce(lambda b,monitor: b and monitor.up, self.monitors, len(self.monitors) == 0)
 
     def calcPartialStatus(self):
         """OR quantification of monitor.up over all monitoring instances of a single Server"""
@@ -508,49 +508,58 @@ class BGPFailover:
             self.setup()
 
     def setup(self):
-        try:
-            self.bgpPeering = bgp.NaiveBGPPeering(myASN=self.globalConfig.getint('bgp-local-asn'),
-                                                  peerAddr=self.globalConfig.get('bgp-peer-address'))
+        peers = self.globalConfig.get('bgp-peer-address').split(',')
+        peersSucceeded = 0
 
-            asPath = [int(asn) for asn in self.globalConfig.get('bgp-as-path', str(self.bgpPeering.myASN)).split()]
-            med = self.globalConfig.getint('bgp-med', 0)
-            baseAttrs = [bgp.OriginAttribute(), bgp.ASPathAttribute(asPath)]
-            if med: baseAttrs.append(bgp.MEDAttribute(med))
-
-            attributes = {}
-            try:
-                attributes[(bgp.AFI_INET, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict(baseAttrs + [
-                    bgp.NextHopAttribute(self.globalConfig['bgp-nexthop-ipv4'])])
-            except KeyError:
-                if (bgp.AFI_INET, bgp.SAFI_UNICAST) in BGPFailover.prefixes:
-                    raise ValueError("IPv4 BGP NextHop (global configuration variable 'bgp-nexthop-ipv4') not set")
+        for peerAddr in peers:
 
             try:
-                attributes[(bgp.AFI_INET6, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict(baseAttrs + [
-                    bgp.MPReachNLRIAttribute((bgp.AFI_INET6, bgp.SAFI_UNICAST,
+                self.bgpPeering = bgp.NaiveBGPPeering(myASN=self.globalConfig.getint('bgp-local-asn'),
+                                                  peerAddr=peerAddr)
+
+                asPath = [int(asn) for asn in self.globalConfig.get('bgp-as-path', str(self.bgpPeering.myASN)).split()]
+                med = self.globalConfig.getint('bgp-med', 0)
+                baseAttrs = [bgp.OriginAttribute(), bgp.ASPathAttribute(asPath)]
+                if med: baseAttrs.append(bgp.MEDAttribute(med))
+
+                attributes = {}
+                try:
+                    attributes[(bgp.AFI_INET, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict(baseAttrs + [
+                        bgp.NextHopAttribute(self.globalConfig['bgp-nexthop-ipv4'])])
+                except KeyError:
+                    if (bgp.AFI_INET, bgp.SAFI_UNICAST) in BGPFailover.prefixes:
+                        raise ValueError("IPv4 BGP NextHop (global configuration variable 'bgp-nexthop-ipv4') not set")
+
+                try:
+                    attributes[(bgp.AFI_INET6, bgp.SAFI_UNICAST)] = bgp.FrozenAttributeDict(baseAttrs + [
+                        bgp.MPReachNLRIAttribute((bgp.AFI_INET6, bgp.SAFI_UNICAST,
                                              bgp.IPv6IP(self.globalConfig['bgp-nexthop-ipv6']), []))])
-            except KeyError:
-                if (bgp.AFI_INET6, bgp.SAFI_UNICAST) in BGPFailover.prefixes:
-                    raise ValueError("IPv6 BGP NextHop (global configuration variable 'bgp-nexthop-ipv6') not set")
+                except KeyError:
+                    if (bgp.AFI_INET6, bgp.SAFI_UNICAST) in BGPFailover.prefixes:
+                        raise ValueError("IPv6 BGP NextHop (global configuration variable 'bgp-nexthop-ipv6') not set")
 
-            advertisements = set([bgp.Advertisement(prefix, attributes[af], af)
+                advertisements = set([bgp.Advertisement(prefix, attributes[af], af)
                                   for af in attributes.keys()
                                   for prefix in BGPFailover.prefixes.get(af, set())])
+                self.bgpPeering.setEnabledAddressFamilies(set(attributes.keys()))
+                self.bgpPeering.setAdvertisements(advertisements)
+                self.bgpPeering.automaticStart()
 
-            self.bgpPeering.setEnabledAddressFamilies(set(attributes.keys()))
-            self.bgpPeering.setAdvertisements(advertisements)
-            self.bgpPeering.automaticStart()
-        except Exception:
-            log.critical("Could not set up BGP peering instance.")
-            raise
-        else:
-            BGPFailover.peerings.append(self.bgpPeering)
-            reactor.addSystemEventTrigger('before', 'shutdown', self.closeSession, self.bgpPeering)
-            try:
-                # Try to listen on the BGP port, not fatal if fails
-                reactor.listenTCP(bgp.PORT, bgp.BGPServerFactory({self.bgpPeering.peerAddr: self.bgpPeering}))
             except Exception:
-                pass
+                log.critical("Could not set up BGP peering instance.")
+
+            else:
+                peersSucceeded += 1
+                BGPFailover.peerings.append(self.bgpPeering)
+                reactor.addSystemEventTrigger('before', 'shutdown', self.closeSession, self.bgpPeering)
+                try:
+                    # Try to listen on the BGP port, not fatal if fails
+                    reactor.listenTCP(bgp.PORT, bgp.BGPServerFactory({self.bgpPeering.peerAddr: self.bgpPeering}))
+                except Exception:
+                    pass
+
+        if peersSucceeded == 0:
+            raise
 
     def closeSession(self, peering):
         log.info("Clearing session to {}".format(peering.peerAddr))
