@@ -1,3 +1,9 @@
+pybal (1.13.2-2+git20160915) testing; urgency=medium
+
+  * Version bumped up (https://gitlab.2gis.ru/InfraWeb/pybal/commit/bd68962380c578382fda801d19c454d21f4c7b1b)
+
+ -- Max Kochubey <m.kochubey@2gis.ru>  Fri, 28 Apr 2017 16:07:21 +0700
+
 pybal (1.13.2-1+git20160915) testing; urgency=medium
 
   * Updated systemd config
