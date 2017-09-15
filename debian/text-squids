@@ -1,7 +1,0 @@
-{ 'host': 'knsq1.knams.wikimedia.org', 'weight': 20, 'enabled': True }
-{ 'host': 'knsq2.knams.wikimedia.org', 'weight': 15, 'enabled': False }
-{ 'host': 'knsq3.knams.wikimedia.org' }
-{ 'host': 'knsq4.knams.wikimedia.org' }
-{ 'host': 'knsq5.knams.wikimedia.org' }
-{ 'host': 'knsq6.knams.wikimedia.org' }
-{ 'host': 'knsq7.knams.wikimedia.org' }

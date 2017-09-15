@@ -1,5 +1,0 @@
-Startup script: 	/etc/init.d/pybal
-Configuration files:	/etc/pybal
-Output logged to:	/var/log/pybal
-
- -- Mark Bergsma <mark@wikimedia.org>, Thu,  8 Mar 2007 16:20:46 +0100

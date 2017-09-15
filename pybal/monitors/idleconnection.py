@@ -8,9 +8,10 @@ Monitor class implementations for PyBal
 from pybal import monitor
 
 from twisted.internet import reactor, protocol
+import logging
 
-import random
 import socket
+
 
 class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.ReconnectingClientFactory):
     """
@@ -18,47 +19,59 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
     server. When the connection is closed in an unclean way, or when the connection
     is closed cleanly but a fast reconnect fails, the monitoring state is set to down.
     """
-    
+
     protocol = protocol.Protocol
 
     TIMEOUT_CLEAN_RECONNECT = 3
     MAX_DELAY = 300
+    KEEPALIVE = True
+    KEEPALIVE_RETRIES = 3
+    KEEPALIVE_IDLE = 10
+    KEEPALIVE_INTERVAL = 30
 
     __name__ = 'IdleConnection'
-    
+
     def __init__(self, coordinator, server, configuration):
         """Constructor"""
-        
-        # Call ancestor constructor        
+
+        # Call ancestor constructor
         super(IdleConnectionMonitoringProtocol, self).__init__(coordinator, server, configuration)
-        
+
         self.toCleanReconnect = self._getConfigInt('timeout-clean-reconnect', self.TIMEOUT_CLEAN_RECONNECT)
         self.maxDelay = self._getConfigInt('max-delay', self.MAX_DELAY)
-        
+        self.keepAlive = self._getConfigBool('keepalive', self.KEEPALIVE)
+        self.keepAliveRetries = self._getConfigInt('keepalive-retries', self.KEEPALIVE_RETRIES)
+        self.keepAliveIdle = self._getConfigInt('keepalive-idle', self.KEEPALIVE_IDLE)
+        self.keepAliveInterval = self._getConfigInt('keepalive-interval', self.KEEPALIVE_INTERVAL)
+
     def run(self):
         """Start the monitoring"""
-        
+
         super(IdleConnectionMonitoringProtocol, self).run()
-        
+
         self._connect()
-    
+
     def stop(self):
-        
+
         super(IdleConnectionMonitoringProtocol, self).stop()
-        
+
         self.stopTrying()
-    
+
+    def startedConnecting(self, connector):
+        self.transport = getattr(connector, 'transport', None)
+        super(IdleConnectionMonitoringProtocol, self).startedConnecting(connector)
+
     def clientConnectionFailed(self, connector, reason):
         """Called if the connection attempt failed"""
 
         if not self.active:
             return
-        
+
         # Immediately set status to down
         self._resultDown(reason.getErrorMessage())
-        
-        self.report("Connection failed.")
-        
+
+        self.report("Connection failed.", level=logging.WARN)
+
         # Slowly reconnect
         self.retry(connector)
 
@@ -67,53 +80,53 @@ class IdleConnectionMonitoringProtocol(monitor.MonitoringProtocol, protocol.Reco
 
         if not self.active:
             return
-        
+
         from twisted.internet import error
         if reason.check(error.ConnectionDone):
             # Connection lost in a clean way. May be idle timeout - try a fast reconnect
             self._connect(timeout=self.toCleanReconnect)
         else:
             # Connection lost in a non clean way. Immediately set status to down
-            self._resultDown(reason.getErrorMessage())            
+            self._resultDown(reason.getErrorMessage())
 
-            self.report("Connection lost.")
+            self.report("Connection lost.", level=logging.INFO)
 
             # Slowly reconnect
             self.retry(connector)
-    
+
     def clientConnectionMade(self):
         """Called by buildProtocol, to notify that the connection has been established."""
 
         if not self.active:
             return
-        
+
+        if self.transport is not None and self.keepAlive:
+            sock = self.transport.getHandle()
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPIDLE, self.keepAliveIdle)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT, self.keepAliveRetries)
+            sock.setsockopt(socket.SOL_TCP, socket.TCP_KEEPINTVL, self.keepAliveInterval)
+
         # Set status to up
         self._resultUp()
-       
+
         # Reset reconnection delay
         self.resetDelay()
-        
+
         self.report("Connection established.")
-    
+
     def buildProtocol(self, addr):
         """
         Called to build a new Protocol instance. Implies that the TCP connection
         has been established successfully.
         """
-        
+
         self.clientConnectionMade()
-        
+
         # Let the ancestor method do the real work
         return super(IdleConnectionMonitoringProtocol, self).buildProtocol(addr)
-    
+
     def _connect(self, *args, **kwargs):
         """Starts a TCP connection attempt"""
-        
-        try:
-            host = random.choice(self.server.ip4_addresses)
-        except (TypeError, IndexError):
-            host = self.server.host
-        
-        connector = reactor.connectTCP(host, self.server.port, self, *args, **kwargs)
-        connector.transport.getHandle().setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
+        self.reactor.connectTCP(self.server.ip, self.server.port, self, *args, **kwargs)

@@ -1,0 +1,14 @@
+[Unit]
+Description=PyBal LVS monitor
+After=syslog.target
+After=network.target
+After=ipvsadm.service
+
+[Service]
+LimitNOFILE=infinity
+ExecStart=/usr/sbin/pybal
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

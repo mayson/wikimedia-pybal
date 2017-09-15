@@ -1,62 +1,129 @@
-pybal (1.2+git20160119-0) stable; urgency=low
+pybal (1.13.3-0+git20170915) testing; urgency=medium
 
-  * Now depends on python-twisted >= 14.0.1.
-  * Added SNI support for proxyfetch checks.
+  * Added ability to use several BGP uplinks
+  * Fixed BGP reconnect issue
+  * Fixed ondemand reconfiguration when no monitors enabled
 
- -- Sergey Maslov <sergey@maslov.biz>  Tue, 19 Jan 2016 12:19:10 +0600
+ -- Sergey Maslov <sergey@maslov.biz>  Fri, 15 Sep 2017 12:41:16 +0700
 
-pybal (1.2+git20140410-0ubuntu1) UNRELEASED; urgency=medium
+pybal (1.13.2-1+git20160915) testing; urgency=medium
 
-  * Changed python2.6 dependency to python2.6+
-  * Added keepalive to idleConnection monitor
+  * Updated systemd config
 
- -- Igor A. Borisov <fizban@2gis-wb>  Wed, 23 Jul 2014 10:34:14 +0700
+ -- Max Kochubey <m.kochubey@2gis.ru>  Wed, 30 Nov 2016 12:40:14 +0700
 
-pybal (1.2+git20140410-0) stable; urgency=low
+pybal (1.13.2-0+git20160915) testing; urgency=medium
 
-  * Fixed runtime reconfiguration of upstream hosts.
+  * Imported all upstream changes
+  * The differences from upstream are:
+    - SNI support for proxyfetch checks,
+    - (bool)persistent config key for persistent balancing,
+    - allow port=0 (default) for balance all TCP/UDP traffic,
+    - add IP/32 to lo interface on startup and delete it on stop,
+    - allow to get status from another port via proxyfetch monitor,
+    - allow to add several IPs comma separated while defining service.
+    - Added fwmethod directive to hosts configurtion.
+    - Now depool-threshold default value is 0.
+    - BGP reconnect after disconnect.
 
- -- Sergey Maslov <sergey@maslov.biz>  Thu, 10 Apr 2014 14:10:23 +0700
+ -- Sergey Maslov <sergey@maslov.biz>  Tue, 13 Sep 2016 13:06:56 +0700
 
-pybal (1.2+git20140408-0) stable; urgency=low
+pybal (1.13.2) jessie-wikimedia; urgency=medium
 
-  * Added check if host is an IP address.
+  * Fix a race condition in the alerting
+  * Add config options for IdleConnectionMonitor KeepAlive
 
- -- Sergey Maslov <sergey@maslov.biz>  Tue, 08 Apr 2014 11:47:21 +0700
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Mon, 07 Dec 2015 17:06:44 +0100
 
-pybal (1.2+git20140407-0) stable; urgency=low
+pybal (1.13.1) jessie-wikimedia; urgency=medium
 
-  * Imported all upstream git commits.
+  * Fix alerting typo
 
- -- Sergey Maslov <sergey@maslov.biz>  Wed, 17 Mar 2014 08:56:45 +0700
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Wed, 18 Nov 2015 17:00:22 +0100
 
-pybal (0.2+git20130716-0) lucid; urgency=low
+pybal (1.13) jessie-wikimedia; urgency=medium
 
-  * Added fwmethod directive to hosts configurtion.
-  * Now depool-threshold default value is 0.
+  * Reverted ansyncronous execution of ipvsadm, as it caused race conditions to happen
 
- -- Sergey Maslov <sergey@maslov.biz>  Tue, 16 Jul 2013 14:37:28 +0700
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Wed, 18 Nov 2015 15:49:48 +0100
 
-pybal (0.2+git20121206-1) lucid; urgency=low
+pybal (1.12.1) jessie-wikimedia; urgency=medium
 
-  * BGP reconnect after disconnect.
+  * Fix instrumentation config
 
- -- Sergey Maslov <sergey@maslov.biz>  Thu, 06 Dec 2012 09:12:22 +0700
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Mon, 16 Nov 2015 15:28:14 +0100
 
-pybal (0.2+git20121204-1) lucid; urgency=low
+pybal (1.12) jessie-wikimedia; urgency=medium
 
-  * Loopback IP address added at startup and deleted on shutdown.
-  * Persistent config key added.
-  * Allow several public ip addresses comma-sepated.
+  * IdleConnection: set tcp keepalive
+  * Add EtcdConfigurationObserver to consume configuration dynamically from etcd
+  * Convert logging from print to twisted.python.log
 
- -- Sergey Maslov <sergey@maslov.biz>  Tue, 04 Dec 2012 11:05:21 +0700
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Fri, 30 Oct 2015 11:44:14 +0100
 
-pybal (0.2+git20120428-1) lucid; urgency=low
+pybal (1.11.1) jessie-wikimedia; urgency=medium
 
-  * Added port 0 support i.e. all tcp or udp traffic.
-  * Init script modified to use kill -9 for frozen python daemon.
+  * Fix a typo in Proxyfetch, systemd unit file
 
- -- Sergey Maslov <sergey@maslov.biz>  Sat, 28 Apr 2012 18:06:24 +0700
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Tue, 06 Oct 2015 14:16:17 +0200
+
+pybal (1.11) jessie-wikimedia; urgency=medium
+
+  * Systemd support, removal of unneeded code (daemonization, file logging)
+  * Added instrumentation HTTP server
+  * ProxyFetch now supports specifying the http_status
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Sat, 03 Oct 2015 11:09:42 +0200
+
+pybal (1.10) jessie-wikimedia; urgency=medium
+
+  * Use reload instead of force-reload when running logrotate
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Wed, 16 Sep 2015 17:13:51 +0200
+
+pybal (1.09) jessie-wikimedia; urgency=low
+
+  * Revert `Lint: make ConfigDict methods lowerCamelCase`
+
+ -- Ori Livneh <ori@wikimedia.org>  Tue, 1 Sep 2015 05:37:00 +0000
+
+pybal (1.08) jessie-wikimedia; urgency=low
+
+  * Lint fixes for I695ce535 and I526d5737
+  * Add unit tests for HttpConfigurationObserver
+  * Add unit tests for FileConfigurationObserver
+  * Initial commit of ConfigurationObserver unit tests
+  * Migrate get_subclasses to pybal.util; add unit tests
+  * Lint: make ConfigDict methods lowerCamelCase
+  * Add HttpConfigurationObserver
+  * Make FileConfigurationObserver easier to extend
+  * Make util.py PEP8-compliant
+  * Drop inotify; improve documentation and handling of configuration formats
+  * Add missing import
+  * Introduce ConfigurationObserver class
+  * Add '__version__' and 'USER_AGENT_STRING'
+  * Use INotify to watch for configuration file changes
+  * Make util.getboolean handle booleans gracefully
+  * Fix travis and coverall configuration
+  * Don't omit 'test'
+  * Fix .travis.yml test invocation command
+  * Report code coverage to coveralls
+
+ -- Ori Livneh <ori@wikimedia.org>  Mon, 31 Aug 2015 19:09:00 +0000
+
+pybal (1.07) trusty; urgency=medium
+
+  * Fix monitors.runcommand to work with newer twisted versions
+  * Make the ipvsadm invocation non-blocking, also check the exit code
+
+ -- Giuseppe Lavagetto <glavagetto@wikimedia.org>  Mon, 20 Apr 2015 09:58:00 +0200
+
+pybal (1.06) precise; urgency=low
+
+  * Fix daemonization stdio issues
+  * Fix BGP bugs on unclean session close
+
+ -- Brandon Black <bblack@wikimedia.org>  Thu, 05 Jun 2014 15:01:13 +0000
 
 pybal (1.05) precise; urgency=low
 

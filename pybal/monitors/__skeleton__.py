@@ -1,6 +1,6 @@
 """
 __skeleton__.py
-Copyright (C) 2006-2012 by Mark Bergsma <mark@nedworks.org>
+Copyright (C) 2006-2014 by Mark Bergsma <mark@nedworks.org>
 
 Copy and modify this file to write a new PyBal monitor.
 It contains the minimum imports and base methods that need
