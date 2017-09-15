@@ -248,13 +248,17 @@ class Server:
     def calcStatus(self):
         """AND quantification of monitor.up over all monitoring instances of a single Server"""
 
+        # Always return up if no monitors attached to the service
+        if len(self.monitors) == 0: return True
         # Global status is up if all monitors report up
-        return reduce(lambda b,monitor: b and monitor.up, self.monitors, len(self.monitors) == 0)
+        return reduce(lambda b,monitor: b and monitor.up, self.monitors, len(self.monitors) != 0)
 
     def calcPartialStatus(self):
         """OR quantification of monitor.up over all monitoring instances of a single Server"""
 
-        # Partial status is up iff one of the monitors reports up
+        # Always return up if no monitors attached to the service
+        if len(self.monitors) == 0: return True
+        # Partial status is up if one of the monitors reports up
         return reduce(lambda b,monitor: b or monitor.up, self.monitors, len(self.monitors) == 0)
 
     def textStatus(self):
